@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Plus, Trash2, X, Check } from "lucide-react";
+import { Plus, Trash2, Check } from "lucide-react";
 import type { Machine, TodoItem } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";

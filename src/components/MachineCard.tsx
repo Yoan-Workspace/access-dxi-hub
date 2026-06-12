@@ -1,8 +1,6 @@
-import { useMemo, useState } from "react";
 import {
   AlertTriangle,
   CheckCircle2,
-  Circle,
   Flag,
   Lightbulb,
   MapPin,
@@ -226,4 +224,4 @@ function asdTone(s: Machine["asdStatus"]): "success" | "danger" | "warning" | "n
 }
 
 // Utility to silence unused warning
-export const _unused = { useMemo, useState, Circle };
+
