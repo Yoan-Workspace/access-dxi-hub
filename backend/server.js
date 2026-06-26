@@ -19,7 +19,8 @@ const path = require('path');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
-const DATA_PATH = path.join(__dirname, 'data', 'data.json');
+// data.json vit à la racine du projet, dans ./data/
+const DATA_PATH = path.join(__dirname, '..', 'data', 'data.json');
 
 // --- Middlewares ---------------------------------------------------------
 app.use(cors());                         // autorise le frontend Vite (port 8080)
