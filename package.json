@@ -1,8 +1,20 @@
 {
   "name": "tanstack_start_ts",
+  "version": "1.0.0",
   "private": true,
-  "sideEffects": false,
+  "description": "",
+  "homepage": "https://github.com/Yoan-Workspace/access-dxi-hub#readme",
+  "bugs": {
+    "url": "https://github.com/Yoan-Workspace/access-dxi-hub/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Yoan-Workspace/access-dxi-hub.git"
+  },
+  "license": "ISC",
+  "author": "Yoan",
   "type": "module",
+  "main": "eslint.config.js",
   "scripts": {
     "dev": "vite dev",
     "build": "vite build",
@@ -83,5 +95,6 @@
     "typescript": "^5.8.3",
     "typescript-eslint": "^8.56.1",
     "vite": "^8.0.16"
-  }
+  },
+  "sideEffects": false
 }
