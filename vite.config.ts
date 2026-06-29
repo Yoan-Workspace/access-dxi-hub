@@ -8,8 +8,8 @@ import { defineConfig } from "@lovable.dev/vite-tanstack-config";
 
 export default defineConfig({
   tanstackStart: {
-    // Redirect TanStack Start's bundled server entry to src/server.ts (our SSR error wrapper).
-    // nitro/vite builds from this
-    server: { entry: "server" },
+    // Keep TanStack Start on the frontend SSR entry in src/server.ts.
+    // The path is explicit to avoid any confusion with a separate Express backend server.js.
+    server: { entry: "../src/server.ts" },
   },
 });
