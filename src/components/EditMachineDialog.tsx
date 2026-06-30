@@ -46,16 +46,22 @@ export function EditMachineDialog({ machine, open, onOpenChange, onSave }: Props
   const set = <K extends keyof Machine>(k: K, v: Machine[K]) =>
     setDraft((d) => (d ? { ...d, [k]: v } : d));
 
-  const save = async () => {
-    if (!draft) return;
-    setSaving(true);
-    try {
-      await onSave(draft);
-      onOpenChange(false);
-    } finally {
-      setSaving(false);
-    }
-  };
+  
+const save = async () => {
+  if (!draft) return;
+
+  console.log("SAVE", draft);
+
+  setSaving(true);
+
+  try {
+    await onSave(draft);
+    onOpenChange(false);
+  } finally {
+    setSaving(false);
+  }
+};
+
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>

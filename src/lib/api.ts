@@ -26,15 +26,18 @@ export async function fetchMachines(): Promise<Machine[]> {
 }
 
 export async function updateMachine(m: Machine): Promise<Machine> {
-  if (!API_BASE) {
-    // Mode démo: pas de persistance, on renvoie l'objet tel quel.
-    return m;
-  }
+  console.log("PUT machine", m);
+
   const res = await fetch(`${API_BASE}/api/machines/${m.id}`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(m),
   });
-  if (!res.ok) throw new Error(`PUT /api/machines/${m.id}: ${res.status}`);
-  return (await res.json()) as Machine;
+
+  console.log("STATUS", res.status);
+
+  if (!res.ok)
+    throw new Error(`PUT /api/machines/${m.id}: ${res.status}`);
+
+  return await res.json();
 }
