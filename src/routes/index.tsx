@@ -43,6 +43,7 @@ export const Route = createFileRoute("/")({
   component: HomePage,
 });
 
+
 type Filter =
   | "all"
   | "mp"
@@ -52,7 +53,53 @@ type Filter =
   | "danger"
   | "flags"
   | "improve"
-  | "asd-pending";
+  | "asd-pending"
+  | "pm-current"
+  | "pm-next"
+  | "pm-overdue";
+
+  
+const monthMap: Record<string, number> = {
+  Janvier: 0,
+  Février: 1,
+  Mars: 2,
+  Avril: 3,
+  Mai: 4,
+  Juin: 5,
+  Juillet: 6,
+  Août: 7,
+  Septembre: 8,
+  Octobre: 9,
+  Novembre: 10,
+  Décembre: 11,
+};
+
+function getNextPm(machine: Machine) {
+  
+
+  const lastPmDate = new Date(
+    machine.pmRef.year,
+    monthMap[machine.pmRef.month],
+    1,
+  );
+
+  const nextPmDate = new Date(lastPmDate);
+
+  // Une PM est toujours réalisée tous les 6 mois
+  nextPmDate.setMonth(nextPmDate.getMonth() + 6);
+
+  const nextPmType =
+    machine.pmRef.period === 6
+      ? 12
+      : 6;
+
+  return {
+    dueDate: nextPmDate,
+    nextType: nextPmType,
+  };
+}
+
+
 
 function HomePage() {
   const { theme, toggle } = useTheme();
@@ -78,6 +125,12 @@ function HomePage() {
   const [editing, setEditing] = useState<Machine | null>(null);
 
   const stats = useMemo(() => {
+    
+  const now = new Date();
+
+  const nextMonth = new Date();
+  nextMonth.setMonth(nextMonth.getMonth() + 1);
+
     const pending = (it: { completed: boolean }[]) => it.some((x) => !x.completed);
     return {
       total: machines.length,
@@ -89,6 +142,33 @@ function HomePage() {
       flags: machines.filter((m) => pending(m.flags)).length,
       improve: machines.filter((m) => pending(m.improvements)).length,
       asdPending: machines.filter((m) => m.asdStatus !== "valid").length,
+      pmCurrent: machines.filter((m) => {
+  const { dueDate } = getNextPm(m);
+    return (
+    dueDate.getMonth() === now.getMonth() &&
+    dueDate.getFullYear() === now.getFullYear()
+    );
+  }).length,
+
+    pmNext: machines.filter((m) => {
+  const { dueDate } = getNextPm(m);
+
+  return (
+    dueDate.getMonth() === nextMonth.getMonth() &&
+    dueDate.getFullYear() === nextMonth.getFullYear()
+  );
+}).length,
+
+pmOverdue: machines.filter((m) => {
+  const { dueDate } = getNextPm(m);
+  const currentMonth = new Date(
+    now.getFullYear(),
+    now.getMonth(),
+    1,
+  );
+  return dueDate < currentMonth;
+}).length,
+
     };
   }, [machines]);
 
@@ -110,6 +190,42 @@ function HomePage() {
           return m.improvements.some((f) => !f.completed);
         case "asd-pending":
           return m.asdStatus !== "valid";
+          case "pm-current": {
+  const { dueDate } = getNextPm(m);
+
+  const now = new Date();
+
+  return (
+    dueDate.getMonth() === now.getMonth() &&
+    dueDate.getFullYear() === now.getFullYear()
+  );
+}
+
+case "pm-next": {
+  const { dueDate } = getNextPm(m);
+
+  const nextMonth = new Date();
+  nextMonth.setMonth(nextMonth.getMonth() + 1);
+
+  return (
+    dueDate.getMonth() === nextMonth.getMonth() &&
+    dueDate.getFullYear() === nextMonth.getFullYear()
+  );
+}
+
+case "pm-overdue": {
+  const { dueDate } = getNextPm(m);
+
+  const now = new Date();
+
+  const currentMonth = new Date(
+    now.getFullYear(),
+    now.getMonth(),
+    1,
+  );
+
+  return dueDate < currentMonth;
+}
         default:
           return true;
       }
@@ -176,6 +292,32 @@ function HomePage() {
             Problèmes ({stats.danger})
           </Chip>
           <span className="mx-1 h-5 w-px bg-border" />
+          
+<Chip
+  active={filter === "pm-overdue"}
+  onClick={() => setFilter("pm-overdue")}
+  tone="danger"
+>
+  PM en retard ({stats.pmOverdue})
+</Chip>
+
+<Chip
+  active={filter === "pm-current"}
+  onClick={() => setFilter("pm-current")}
+  tone="maintenance"
+>
+  PM ce mois ({stats.pmCurrent})
+</Chip>
+
+<Chip
+  active={filter === "pm-next"}
+  onClick={() => setFilter("pm-next")}
+  tone="warning"
+>
+  PM mois suivant ({stats.pmNext})
+</Chip>
+
+
           <Chip active={filter === "flags"} onClick={() => setFilter("flags")} tone="warning">
             <Flag className="h-3.5 w-3.5" /> Flags ({stats.flags})
           </Chip>

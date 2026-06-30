@@ -33,6 +33,41 @@ const months = [
   "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre",
 ];
 
+const monthMap: Record<string, number> = {
+  Janvier: 0,
+  Février: 1,
+  Mars: 2,
+  Avril: 3,
+  Mai: 4,
+  Juin: 5,
+  Juillet: 6,
+  Août: 7,
+  Septembre: 8,
+  Octobre: 9,
+  Novembre: 10,
+  Décembre: 11,
+};
+
+function getNextPmInfo(pmRef: {
+  period: number;
+  month: string;
+  year: number;
+}) {
+  const date = new Date(
+    pmRef.year,
+    monthMap[pmRef.month],
+    1,
+  );
+
+  // Une PM est faite tous les 6 mois
+  date.setMonth(date.getMonth() + 6);
+
+  return {
+    date,
+    nextType: pmRef.period === 6 ? 12 : 6,
+  };
+}
+
 export function EditMachineDialog({ machine, open, onOpenChange, onSave }: Props) {
   const [draft, setDraft] = useState<Machine | null>(machine);
   const [saving, setSaving] = useState(false);
@@ -42,6 +77,12 @@ export function EditMachineDialog({ machine, open, onOpenChange, onSave }: Props
   }, [machine]);
 
   if (!draft) return null;
+
+
+const nextPm = draft.pmRef
+  ? getNextPmInfo(draft.pmRef)
+  : null;
+
 
   const set = <K extends keyof Machine>(k: K, v: Machine[K]) =>
     setDraft((d) => (d ? { ...d, [k]: v } : d));
@@ -159,44 +200,126 @@ const save = async () => {
                 </Field>
               </div>
 
-              <div className="rounded-xl border bg-muted/40 p-4">
-                <div className="mb-3 text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                  Préventive (PM)
-                </div>
-                <div className="grid grid-cols-3 gap-4">
-                  <Field label="Période (mois)">
-                    <Input
-                      type="number"
-                      value={draft.pmRef.period}
-                      onChange={(e) =>
-                        set("pmRef", { ...draft.pmRef, period: Number(e.target.value) || 0 })
-                      }
-                    />
-                  </Field>
-                  <Field label="Mois">
-                    <Select
-                      value={draft.pmRef.month}
-                      onValueChange={(v) => set("pmRef", { ...draft.pmRef, month: v })}
-                    >
-                      <SelectTrigger><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        {months.map((m) => (
-                          <SelectItem key={m} value={m}>{m}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </Field>
-                  <Field label="Année">
-                    <Input
-                      type="number"
-                      value={draft.pmRef.year}
-                      onChange={(e) =>
-                        set("pmRef", { ...draft.pmRef, year: Number(e.target.value) || 0 })
-                      }
-                    />
-                  </Field>
-                </div>
-              </div>
+              <div className="rounded-xl border bg-muted/40 p-4 space-y-4">
+  <div className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+    Maintenance Préventive
+  </div>
+
+  <div className="grid grid-cols-2 gap-4">
+    <div className="rounded-lg border bg-background p-3">
+      <div className="text-xs text-muted-foreground">
+        Dernière PM réalisée
+      </div>
+
+      {draft.pmRef ? (
+  <>
+    <div className="mt-2 font-medium">
+      {draft.pmRef.month} {draft.pmRef.year}
+    </div>
+
+    <div className="mt-1 text-sm text-muted-foreground">
+      PM {draft.pmRef.period} mois
+    </div>
+  </>
+) : (
+  <div className="mt-2 text-sm text-muted-foreground">
+    Aucune PM enregistrée
+  </div>
+)}
+    </div>
+
+    <div className="rounded-lg border bg-background p-3">
+      <div className="text-xs text-muted-foreground">
+        Prochaine PM prévue
+      </div>
+
+      {nextPm ? (
+  <>
+    <div className="mt-2 font-medium">
+      {months[nextPm.date.getMonth()]}{" "}
+      {nextPm.date.getFullYear()}
+    </div>
+
+    <div className="mt-1 text-sm text-muted-foreground">
+      PM {nextPm.nextType} mois
+    </div>
+  </>
+) : (
+  <div className="mt-2 text-sm text-muted-foreground">
+    PM non planifiée
+  </div>
+)}
+    </div>
+  </div>
+
+  <div className="grid grid-cols-3 gap-4">
+    <Field label="Type de PM réalisée">
+      <Select
+        value={draft.pmRef ? String(draft.pmRef.period) : ""}
+        onValueChange={(v) =>
+          set("pmRef", {
+            ...draft.pmRef,
+            period: Number(v),
+          })
+        }
+      >
+        <SelectTrigger>
+          <SelectValue />
+        </SelectTrigger>
+
+        <SelectContent>
+          <SelectItem value="6">
+            PM 6 mois
+          </SelectItem>
+
+          <SelectItem value="12">
+            PM 12 mois
+          </SelectItem>
+        </SelectContent>
+      </Select>
+    </Field>
+
+    <Field label="Mois réalisé">
+      <Select
+        value={draft.pmRef.month}
+        onValueChange={(v) =>
+          set("pmRef", {
+            ...draft.pmRef,
+            month: v,
+          })
+        }
+      >
+        <SelectTrigger>
+          <SelectValue />
+        </SelectTrigger>
+
+        <SelectContent>
+          {months.map((m) => (
+            <SelectItem
+              key={m}
+              value={m}
+            >
+              {m}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </Field>
+
+    <Field label="Année réalisée">
+      <Input
+        type="number"
+        value={draft.pmRef.year}
+        onChange={(e) =>
+          set("pmRef", {
+            ...draft.pmRef,
+            year: Number(e.target.value),
+          })
+        }
+      />
+    </Field>
+  </div>
+</div>
             </TabsContent>
 
             <TabsContent value="flags" className="mt-0">
