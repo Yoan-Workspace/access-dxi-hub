@@ -4,7 +4,6 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Activity,
   AlertTriangle,
-  CheckCircle2,
   Flag,
   FlaskConical,
   Lightbulb,
@@ -13,8 +12,6 @@ import {
   Moon,
   Search,
   Sun,
-  Wrench,
-  XCircle,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -160,15 +157,6 @@ function HomePage() {
       </header>
 
       <main className="mx-auto max-w-7xl px-6 py-8">
-        {/* Stats */}
-        <section className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-          <Stat label="Total" value={stats.total} icon={<Activity className="h-4 w-4" />} />
-          <Stat label="DXI 9000" value={stats.mp} icon={<Microchip className="h-4 w-4" />} tone="mp" />
-          <Stat label="ACCESS" value={stats.access} icon={<FlaskConical className="h-4 w-4" />} tone="access" />
-          <Stat label="OK" value={stats.ok} icon={<CheckCircle2 className="h-4 w-4" />} tone="success" />
-          <Stat label="En maintenance" value={stats.maintenance} icon={<Wrench className="h-4 w-4" />} tone="maintenance" />
-          <Stat label="Problèmes" value={stats.danger} icon={<XCircle className="h-4 w-4" />} tone="danger" />
-        </section>
 
         {/* Filters */}
         <section className="mt-6 flex flex-wrap items-center gap-2">
@@ -248,36 +236,6 @@ function HomePage() {
           await mutation.mutateAsync(m);
         }}
       />
-    </div>
-  );
-}
-
-function Stat({
-  label,
-  value,
-  icon,
-  tone = "neutral",
-}: {
-  label: string;
-  value: number;
-  icon: React.ReactNode;
-  tone?: "neutral" | "success" | "danger" | "maintenance" | "mp" | "access";
-}) {
-  const toneCls = {
-    neutral: "text-foreground",
-    success: "text-success",
-    danger: "text-danger",
-    maintenance: "text-maintenance",
-    mp: "text-mp",
-    access: "text-access",
-  }[tone];
-  return (
-    <div className="rounded-xl border bg-card p-4">
-      <div className="flex items-center justify-between text-xs text-muted-foreground">
-        <span>{label}</span>
-        <span className={toneCls}>{icon}</span>
-      </div>
-      <div className={cn("mt-2 text-2xl font-semibold tabular-nums", toneCls)}>{value}</div>
     </div>
   );
 }
