@@ -38,5 +38,8 @@ export interface Machine {
 export type MachineKind = "MP" | "ACCESS";
 
 export function machineKind(m: Pick<Machine, "name">): MachineKind {
-  return m.name.toLowerCase().startsWith("access") ? "ACCESS" : "MP";
+  const name = m.name.toLowerCase();
+  if (name.startsWith("access")) return "ACCESS";
+  // DXI 9000 : MP, Falcon, Machine Prototype…
+  return "MP";
 }

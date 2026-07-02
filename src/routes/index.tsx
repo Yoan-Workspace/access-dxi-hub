@@ -1,15 +1,11 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Activity,
-  AlertTriangle,
-  Flag,
-  FlaskConical,
-  Lightbulb,
   Loader2,
-  Microchip,
   Moon,
+  Plus,
   Search,
   Sun,
 } from "lucide-react";
@@ -17,11 +13,21 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { MachineCard } from "@/components/MachineCard";
 import { EditMachineDialog } from "@/components/EditMachineDialog";
-import { API_CONFIGURED, fetchMachines, updateMachine } from "@/lib/api";
+import { AddMachineDialog } from "@/components/AddMachineDialog";
+import {
+  defaultFilters,
+  MachineFilters,
+  type MachineFiltersState,
+} from "@/components/MachineFilters";
+import {
+  API_CONFIGURED,
+  createMachine,
+  fetchMachines,
+  updateMachine,
+} from "@/lib/api";
 import type { Machine } from "@/lib/types";
 import { machineKind } from "@/lib/types";
 import { useTheme } from "@/lib/theme";
-import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/")({
@@ -31,34 +37,18 @@ export const Route = createFileRoute("/")({
       {
         name: "description",
         content:
-          "Suivi et maintenance des machines DXI 9000 (MP) et ACCESS : status, PM, ASD, problèmes et améliorations.",
+          "Suivi et maintenance des machines DXI 9000 (Falcon / MP) et Access 2 : status, PM, ASD, problèmes et améliorations.",
       },
       { property: "og:title", content: "Status Machines — DXI 9000 & ACCESS" },
       {
         property: "og:description",
-        content: "Suivi et maintenance des machines DXI 9000 et ACCESS.",
+        content: "Suivi et maintenance des machines DXI 9000 et Access 2.",
       },
     ],
   }),
   component: HomePage,
 });
 
-
-type Filter =
-  | "all"
-  | "mp"
-  | "access"
-  | "ok"
-  | "maintenance"
-  | "danger"
-  | "flags"
-  | "improve"
-  | "asd-pending"
-  | "pm-current"
-  | "pm-next"
-  | "pm-overdue";
-
-  
 const monthMap: Record<string, number> = {
   Janvier: 0,
   Février: 1,
@@ -75,31 +65,46 @@ const monthMap: Record<string, number> = {
 };
 
 function getNextPm(machine: Machine) {
-  
-
   const lastPmDate = new Date(
     machine.pmRef.year,
     monthMap[machine.pmRef.month],
     1,
   );
-
   const nextPmDate = new Date(lastPmDate);
-
-  // Une PM est toujours réalisée tous les 6 mois
   nextPmDate.setMonth(nextPmDate.getMonth() + 6);
-
-  const nextPmType =
-    machine.pmRef.period === 6
-      ? 12
-      : 6;
 
   return {
     dueDate: nextPmDate,
-    nextType: nextPmType,
+    nextType: machine.pmRef.period === 6 ? 12 : 6,
   };
 }
 
+function matchesPmFilter(machine: Machine, pm: MachineFiltersState["pm"]) {
+  if (pm === "all") return true;
 
+  const { dueDate } = getNextPm(machine);
+  const now = new Date();
+  const nextMonth = new Date();
+  nextMonth.setMonth(nextMonth.getMonth() + 1);
+  const currentMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+
+  switch (pm) {
+    case "pm-current":
+      return (
+        dueDate.getMonth() === now.getMonth() &&
+        dueDate.getFullYear() === now.getFullYear()
+      );
+    case "pm-next":
+      return (
+        dueDate.getMonth() === nextMonth.getMonth() &&
+        dueDate.getFullYear() === nextMonth.getFullYear()
+      );
+    case "pm-overdue":
+      return dueDate < currentMonth;
+    default:
+      return true;
+  }
+}
 
 function HomePage() {
   const { theme, toggle } = useTheme();
@@ -109,7 +114,22 @@ function HomePage() {
     queryFn: fetchMachines,
   });
 
-  const mutation = useMutation({
+  useEffect(() => {
+    if (!API_CONFIGURED) return;
+
+    const apiBase = import.meta.env.VITE_API_URL?.replace(/\/$/, "");
+    if (!apiBase) return;
+
+    const source = new EventSource(`${apiBase}/api/events`);
+    source.onmessage = () => {
+      toast.info("Base de données mise à jour");
+      void qc.invalidateQueries({ queryKey: ["machines"] });
+    };
+
+    return () => source.close();
+  }, [qc]);
+
+  const updateMutation = useMutation({
     mutationFn: updateMachine,
     onSuccess: (updated) => {
       qc.setQueryData<Machine[]>(["machines"], (prev) =>
@@ -120,18 +140,29 @@ function HomePage() {
     onError: (e) => toast.error(`Échec de la sauvegarde : ${(e as Error).message}`),
   });
 
-  const [filter, setFilter] = useState<Filter>("all");
+  const createMutation = useMutation({
+    mutationFn: createMachine,
+    onSuccess: (created) => {
+      qc.setQueryData<Machine[]>(["machines"], (prev) =>
+        prev ? [...prev, created] : [created],
+      );
+      toast.success(`Machine ${created.name} créée`);
+    },
+    onError: (e) => toast.error(`Échec de la création : ${(e as Error).message}`),
+  });
+
+  const [filters, setFilters] = useState<MachineFiltersState>(defaultFilters);
   const [query, setQuery] = useState("");
   const [editing, setEditing] = useState<Machine | null>(null);
+  const [adding, setAdding] = useState(false);
 
   const stats = useMemo(() => {
-    
-  const now = new Date();
+    const now = new Date();
+    const nextMonth = new Date();
+    nextMonth.setMonth(nextMonth.getMonth() + 1);
+    const pending = (items: { completed: boolean }[]) =>
+      items.some((x) => !x.completed);
 
-  const nextMonth = new Date();
-  nextMonth.setMonth(nextMonth.getMonth() + 1);
-
-    const pending = (it: { completed: boolean }[]) => it.some((x) => !x.completed);
     return {
       total: machines.length,
       mp: machines.filter((m) => machineKind(m) === "MP").length,
@@ -142,99 +173,41 @@ function HomePage() {
       flags: machines.filter((m) => pending(m.flags)).length,
       improve: machines.filter((m) => pending(m.improvements)).length,
       asdPending: machines.filter((m) => m.asdStatus !== "valid").length,
-      pmCurrent: machines.filter((m) => {
-  const { dueDate } = getNextPm(m);
-    return (
-    dueDate.getMonth() === now.getMonth() &&
-    dueDate.getFullYear() === now.getFullYear()
-    );
-  }).length,
-
-    pmNext: machines.filter((m) => {
-  const { dueDate } = getNextPm(m);
-
-  return (
-    dueDate.getMonth() === nextMonth.getMonth() &&
-    dueDate.getFullYear() === nextMonth.getFullYear()
-  );
-}).length,
-
-pmOverdue: machines.filter((m) => {
-  const { dueDate } = getNextPm(m);
-  const currentMonth = new Date(
-    now.getFullYear(),
-    now.getMonth(),
-    1,
-  );
-  return dueDate < currentMonth;
-}).length,
-
+      pmCurrent: machines.filter((m) => matchesPmFilter(m, "pm-current")).length,
+      pmNext: machines.filter((m) => matchesPmFilter(m, "pm-next")).length,
+      pmOverdue: machines.filter((m) => matchesPmFilter(m, "pm-overdue")).length,
     };
   }, [machines]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
+
     return machines.filter((m) => {
-      if (q && !m.name.toLowerCase().includes(q) && !m.localisation.toLowerCase().includes(q))
+      if (
+        q &&
+        !m.name.toLowerCase().includes(q) &&
+        !m.localisation.toLowerCase().includes(q)
+      ) {
         return false;
-      switch (filter) {
-        case "mp": return machineKind(m) === "MP";
-        case "access": return machineKind(m) === "ACCESS";
-        case "ok":
-        case "maintenance":
-        case "danger":
-          return m.status === filter;
-        case "flags":
-          return m.flags.some((f) => !f.completed);
-        case "improve":
-          return m.improvements.some((f) => !f.completed);
-        case "asd-pending":
-          return m.asdStatus !== "valid";
-          case "pm-current": {
-  const { dueDate } = getNextPm(m);
-
-  const now = new Date();
-
-  return (
-    dueDate.getMonth() === now.getMonth() &&
-    dueDate.getFullYear() === now.getFullYear()
-  );
-}
-
-case "pm-next": {
-  const { dueDate } = getNextPm(m);
-
-  const nextMonth = new Date();
-  nextMonth.setMonth(nextMonth.getMonth() + 1);
-
-  return (
-    dueDate.getMonth() === nextMonth.getMonth() &&
-    dueDate.getFullYear() === nextMonth.getFullYear()
-  );
-}
-
-case "pm-overdue": {
-  const { dueDate } = getNextPm(m);
-
-  const now = new Date();
-
-  const currentMonth = new Date(
-    now.getFullYear(),
-    now.getMonth(),
-    1,
-  );
-
-  return dueDate < currentMonth;
-}
-        default:
-          return true;
       }
+
+      if (filters.type === "mp" && machineKind(m) !== "MP") return false;
+      if (filters.type === "access" && machineKind(m) !== "ACCESS") return false;
+      if (filters.status !== "all" && m.status !== filters.status) return false;
+      if (!matchesPmFilter(m, filters.pm)) return false;
+
+      if (filters.track === "flags" && !m.flags.some((f) => !f.completed)) return false;
+      if (filters.track === "improve" && !m.improvements.some((f) => !f.completed)) {
+        return false;
+      }
+      if (filters.track === "asd-pending" && m.asdStatus === "valid") return false;
+
+      return true;
     });
-  }, [machines, filter, query]);
+  }, [machines, filters, query]);
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Header */}
       <header className="sticky top-0 z-20 border-b bg-background/80 backdrop-blur">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-6 py-4">
           <div className="flex items-center gap-3">
@@ -243,7 +216,9 @@ case "pm-overdue": {
             </div>
             <div>
               <h1 className="text-base font-semibold tracking-tight">Status Machines</h1>
-              <p className="text-xs text-muted-foreground">DXI 9000 (MP) & ACCESS</p>
+              <p className="text-xs text-muted-foreground">
+                DXI 9000 (Falcon / MP) & Access 2
+              </p>
             </div>
           </div>
 
@@ -251,7 +226,7 @@ case "pm-overdue": {
             <div className="relative">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
-                placeholder="Rechercher une machine…"
+                placeholder="Rechercher par nom ou localisation…"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 className="pl-9"
@@ -265,6 +240,18 @@ case "pm-overdue": {
                 Mode démo — VITE_API_URL non défini
               </span>
             )}
+            <Button
+              onClick={() => setAdding(true)}
+              disabled={!API_CONFIGURED}
+              title={
+                API_CONFIGURED
+                  ? "Ajouter une machine"
+                  : "Configurez VITE_API_URL pour ajouter une machine"
+              }
+            >
+              <Plus className="h-4 w-4" />
+              <span className="hidden sm:inline">Nouvelle machine</span>
+            </Button>
             <Button variant="outline" size="icon" onClick={toggle} aria-label="Thème">
               {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
             </Button>
@@ -273,63 +260,13 @@ case "pm-overdue": {
       </header>
 
       <main className="mx-auto max-w-7xl px-6 py-8">
+        <MachineFilters
+          filters={filters}
+          stats={stats}
+          onChange={setFilters}
+          onReset={() => setFilters(defaultFilters)}
+        />
 
-        {/* Filters */}
-        <section className="mt-6 flex flex-wrap items-center gap-2">
-          <Chip active={filter === "all"} onClick={() => setFilter("all")}>Toutes ({stats.total})</Chip>
-          <Chip active={filter === "mp"} onClick={() => setFilter("mp")} tone="mp">
-            <Microchip className="h-3.5 w-3.5" /> MP ({stats.mp})
-          </Chip>
-          <Chip active={filter === "access"} onClick={() => setFilter("access")} tone="access">
-            <FlaskConical className="h-3.5 w-3.5" /> ACCESS ({stats.access})
-          </Chip>
-          <span className="mx-1 h-5 w-px bg-border" />
-          <Chip active={filter === "ok"} onClick={() => setFilter("ok")} tone="success">OK ({stats.ok})</Chip>
-          <Chip active={filter === "maintenance"} onClick={() => setFilter("maintenance")} tone="maintenance">
-            Maintenance ({stats.maintenance})
-          </Chip>
-          <Chip active={filter === "danger"} onClick={() => setFilter("danger")} tone="danger">
-            Problèmes ({stats.danger})
-          </Chip>
-          <span className="mx-1 h-5 w-px bg-border" />
-          
-<Chip
-  active={filter === "pm-overdue"}
-  onClick={() => setFilter("pm-overdue")}
-  tone="danger"
->
-  PM en retard ({stats.pmOverdue})
-</Chip>
-
-<Chip
-  active={filter === "pm-current"}
-  onClick={() => setFilter("pm-current")}
-  tone="maintenance"
->
-  PM ce mois ({stats.pmCurrent})
-</Chip>
-
-<Chip
-  active={filter === "pm-next"}
-  onClick={() => setFilter("pm-next")}
-  tone="warning"
->
-  PM mois suivant ({stats.pmNext})
-</Chip>
-
-
-          <Chip active={filter === "flags"} onClick={() => setFilter("flags")} tone="warning">
-            <Flag className="h-3.5 w-3.5" /> Flags ({stats.flags})
-          </Chip>
-          <Chip active={filter === "improve"} onClick={() => setFilter("improve")} tone="improve">
-            <Lightbulb className="h-3.5 w-3.5" /> Improv. ({stats.improve})
-          </Chip>
-          <Chip active={filter === "asd-pending"} onClick={() => setFilter("asd-pending")} tone="warning">
-            <AlertTriangle className="h-3.5 w-3.5" /> ASD à faire ({stats.asdPending})
-          </Chip>
-        </section>
-
-        {/* Mobile search */}
         <div className="mt-4 md:hidden">
           <div className="relative">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -342,7 +279,6 @@ case "pm-overdue": {
           </div>
         </div>
 
-        {/* Grid */}
         <section className="mt-6">
           {isLoading ? (
             <div className="flex items-center justify-center py-24 text-muted-foreground">
@@ -354,7 +290,7 @@ case "pm-overdue": {
             </div>
           ) : filtered.length === 0 ? (
             <div className="rounded-xl border border-dashed py-16 text-center text-sm text-muted-foreground">
-              Aucune machine ne correspond.
+              Aucune machine ne correspond aux critères sélectionnés.
             </div>
           ) : (
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
@@ -375,43 +311,17 @@ case "pm-overdue": {
         open={!!editing}
         onOpenChange={(o) => !o && setEditing(null)}
         onSave={async (m) => {
-          await mutation.mutateAsync(m);
+          await updateMutation.mutateAsync(m);
+        }}
+      />
+
+      <AddMachineDialog
+        open={adding}
+        onOpenChange={setAdding}
+        onCreate={async (machine) => {
+          await createMutation.mutateAsync(machine);
         }}
       />
     </div>
-  );
-}
-
-function Chip({
-  active,
-  onClick,
-  children,
-  tone = "neutral",
-}: {
-  active?: boolean;
-  onClick: () => void;
-  children: React.ReactNode;
-  tone?: "neutral" | "mp" | "access" | "success" | "danger" | "maintenance" | "warning" | "improve";
-}) {
-  const activeCls = {
-    neutral: "bg-foreground text-background border-foreground",
-    mp: "bg-mp text-white border-mp",
-    access: "bg-access text-white border-access",
-    success: "bg-success text-white border-success",
-    danger: "bg-danger text-white border-danger",
-    maintenance: "bg-maintenance text-white border-maintenance",
-    warning: "bg-warning text-white border-warning",
-    improve: "bg-improve text-white border-improve",
-  }[tone];
-  return (
-    <button
-      onClick={onClick}
-      className={cn(
-        "inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition",
-        active ? activeCls : "border-border bg-card hover:bg-secondary",
-      )}
-    >
-      {children}
-    </button>
   );
 }

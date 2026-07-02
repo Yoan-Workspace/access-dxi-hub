@@ -91,8 +91,6 @@ const nextPm = draft.pmRef
 const save = async () => {
   if (!draft) return;
 
-  console.log("SAVE", draft);
-
   setSaving(true);
 
   try {

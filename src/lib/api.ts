@@ -4,6 +4,7 @@ import type { Machine } from "./types";
 // Exemple: VITE_API_URL=http://localhost:3001
 // Contrat attendu:
 //   GET    {API}/api/machines           -> { machines: Machine[] }
+//   POST   {API}/api/machines           -> Machine (body: Machine sans id)
 //   PUT    {API}/api/machines/:id       -> Machine (body: Machine)
 // Si VITE_API_URL n'est pas défini, on lit /machines.json (mode démo, lecture seule).
 
@@ -25,8 +26,26 @@ export async function fetchMachines(): Promise<Machine[]> {
   return data.machines;
 }
 
+export async function createMachine(machine: Omit<Machine, "id">): Promise<Machine> {
+  if (!API_BASE) {
+    throw new Error("API non configurée — impossible d'ajouter une machine");
+  }
+
+  const res = await fetch(`${API_BASE}/api/machines`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(machine),
+  });
+
+  if (!res.ok) throw new Error(`POST /api/machines: ${res.status}`);
+
+  return (await res.json()) as Machine;
+}
+
 export async function updateMachine(m: Machine): Promise<Machine> {
-  console.log("PUT machine", m);
+  if (!API_BASE) {
+    throw new Error("API non configurée — impossible de modifier une machine");
+  }
 
   const res = await fetch(`${API_BASE}/api/machines/${m.id}`, {
     method: "PUT",
@@ -34,10 +53,7 @@ export async function updateMachine(m: Machine): Promise<Machine> {
     body: JSON.stringify(m),
   });
 
-  console.log("STATUS", res.status);
+  if (!res.ok) throw new Error(`PUT /api/machines/${m.id}: ${res.status}`);
 
-  if (!res.ok)
-    throw new Error(`PUT /api/machines/${m.id}: ${res.status}`);
-
-  return await res.json();
+  return (await res.json()) as Machine;
 }

@@ -68,10 +68,7 @@ export function MachineCard({
 
   return (
     <div
-      onClick={() => {
-        console.log("Carte cliquée :", machine.name);
-        onEdit();
-      }}
+      onClick={onEdit}
       className={cn(
         "group relative flex cursor-pointer flex-col gap-4 rounded-2xl border bg-card p-5",
         "transition-all duration-200",
@@ -98,7 +95,7 @@ export function MachineCard({
                   : "bg-access/10 text-access"
               )}
             >
-              {kind === "MP" ? "DXI 9000" : "ACCESS"}
+              {kind === "MP" ? "DXI 9000" : "Access 2"}
             </span>
 
             <span
