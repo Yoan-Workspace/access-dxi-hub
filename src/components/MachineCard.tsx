@@ -71,7 +71,7 @@ export function MachineCard({
     <div
       onClick={() => onEdit("general")}
       className={cn(
-        "group relative flex min-h-[22rem] cursor-pointer flex-col gap-5 rounded-2xl border bg-card p-6",
+        "group relative flex cursor-pointer flex-col gap-4 rounded-2xl border bg-card p-5",
         "transition-all duration-200",
         "hover:-translate-y-1",
         "hover:border-primary/40",
@@ -169,9 +169,9 @@ export function MachineCard({
         />
       </div>
 
-      <div className="grid flex-1 grid-cols-2 gap-3">
+      <div className="grid grid-cols-4 gap-1.5">
         <Counter
-          icon={<Flag className="h-5 w-5 shrink-0" />}
+          icon={<Flag className="h-3.5 w-3.5 shrink-0" />}
           pending={flagsP}
           total={machine.flags.length}
           label="Flags"
@@ -180,25 +180,25 @@ export function MachineCard({
         />
 
         <Counter
-          icon={<XCircle className="h-5 w-5 shrink-0" />}
+          icon={<XCircle className="h-3.5 w-3.5 shrink-0" />}
           pending={probsP}
           total={machine.problems.length}
-          label="Problèmes"
+          label="Probl."
           tone="danger"
           onClick={() => onEdit("problems")}
         />
 
         <Counter
-          icon={<AlertTriangle className="h-5 w-5 shrink-0" />}
+          icon={<AlertTriangle className="h-3.5 w-3.5 shrink-0" />}
           pending={repairsP}
           total={machine.repairs.length}
-          label="Réparations"
+          label="Répar."
           tone="warning"
           onClick={() => onEdit("repairs")}
         />
 
         <Counter
-          icon={<Lightbulb className="h-5 w-5 shrink-0" />}
+          icon={<Lightbulb className="h-3.5 w-3.5 shrink-0" />}
           value={improvP}
           label="Improv."
           tone="improve"
@@ -286,30 +286,28 @@ function Counter({
         onClick();
       }}
       className={cn(
-        "flex min-h-[7.25rem] w-full flex-col justify-between rounded-xl border-2 bg-background/60 px-4 py-3.5 text-left transition",
-        "hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40",
+        "flex min-h-[3.75rem] w-full flex-col items-center justify-center gap-0.5 rounded-lg border bg-background/50 px-1.5 py-2 text-center transition",
+        "hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40",
         toneCls,
       )}
     >
-      <div className="flex min-w-0 items-center gap-2 text-sm font-semibold leading-tight">
+      <div className="flex items-center justify-center gap-1 text-[10px] font-medium leading-none">
         {icon}
-        <span className="break-words">{label}</span>
+        <span className="truncate">{label}</span>
       </div>
 
-      <div className="mt-3 text-2xl font-bold tabular-nums leading-none">
+      <div className="text-sm font-semibold tabular-nums leading-none">
         {activeOnly ? (
           <span className={cn(active ? numberCls : "text-muted-foreground")}>
             {count}
             {count > 0 && (
-              <span className="ml-1.5 text-xs font-medium opacity-80">
-                {count > 1 ? "actifs" : "actif"}
-              </span>
+              <span className="ml-0.5 text-[9px] font-normal opacity-75">act.</span>
             )}
           </span>
         ) : (
           <>
             <span className={cn(active ? numberCls : "text-foreground")}>{count}</span>
-            <span className="text-lg font-semibold text-muted-foreground">/{total ?? 0}</span>
+            <span className="text-xs font-medium text-muted-foreground">/{total ?? 0}</span>
           </>
         )}
       </div>
