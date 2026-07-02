@@ -6,10 +6,12 @@ Le frontend appelle un serveur Node.js / Express via la variable d'environnement
 Exemple `.env.local` :
 
 ```
-VITE_API_URL=http://localhost:3001
+VITE_API_URL=http://localhost:3000
 ```
 
 Sans cette variable, le frontend lit `public/machines.json` en lecture seule (mode démo).
+
+Le serveur de référence est `server.js` à la racine (port **3000**, données dans `data/data.json`).
 
 ## Endpoints
 
@@ -21,11 +23,21 @@ Réponse :
 { "machines": [ /* Machine[] */ ] }
 ```
 
+### `POST /api/machines`
+
+Body : un objet `Machine` sans `id` (voir `src/lib/types.ts`).
+
+Réponse : la `Machine` créée (status `201`). L'`id` est attribué automatiquement.
+
 ### `PUT /api/machines/:id`
 
 Body : un objet `Machine` complet (voir `src/lib/types.ts`).
 
 Réponse : la `Machine` mise à jour.
+
+### `GET /api/events`
+
+Flux SSE : notifie le frontend quand `data/data.json` est modifié.
 
 ## Exemple minimal de serveur Express
 

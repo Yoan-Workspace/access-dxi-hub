@@ -1,7 +1,7 @@
 import type { Machine } from "./types";
 
 // Configure ton serveur Express via VITE_API_URL (.env.local).
-// Exemple: VITE_API_URL=http://localhost:3001
+// Exemple: VITE_API_URL=http://localhost:3000
 // Contrat attendu:
 //   GET    {API}/api/machines           -> { machines: Machine[] }
 //   POST   {API}/api/machines           -> Machine (body: Machine sans id)
