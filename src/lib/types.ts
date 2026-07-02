@@ -1,5 +1,5 @@
 export type MachineStatus = "ok" | "maintenance" | "danger";
-export type AsdStatus = "valid" | "pending" | "fail_precision" | "warning";
+export type AsdStatus = "valid" | "pending" | "fail_precision" | "warning" | "invalid";
 export type AdamStatus = "fonctionnelle" | "non_fonctionnelle";
 export type MonthlyMaint = "done" | "not_done";
 export type Localisation = "BSL2" | "Thermal" | string;
@@ -32,7 +32,7 @@ export interface Machine {
   asdStatus: AsdStatus;
   asdLabel?: string;
   pmHistory?: unknown[];
-  monthlyMaint: MonthlyMaint;
+  monthlyMaint?: MonthlyMaint;
 }
 
 export type MachineKind = "MP" | "ACCESS";

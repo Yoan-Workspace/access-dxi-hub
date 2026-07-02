@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Plus, Trash2, Check } from "lucide-react";
 import type { Machine, TodoItem } from "@/lib/types";
+import { machineKind } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -97,10 +98,8 @@ export function EditMachineDialog({
 
   if (!draft) return null;
 
-
-const nextPm = draft.pmRef
-  ? getNextPmInfo(draft.pmRef)
-  : null;
+  const kind = machineKind(draft);
+  const nextPm = draft.pmRef ? getNextPmInfo(draft.pmRef) : null;
 
 
   const set = <K extends keyof Machine>(k: K, v: Machine[K]) =>
@@ -203,31 +202,51 @@ const remove = async () => {
                     </SelectContent>
                   </Select>
                 </Field>
-                <Field label="ASD">
-                  <Select
-                    value={draft.asdStatus}
-                    onValueChange={(v) => set("asdStatus", v as Machine["asdStatus"])}
-                  >
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="valid">Valide</SelectItem>
-                      <SelectItem value="pending">À faire</SelectItem>
-                      <SelectItem value="fail_precision">Échec précision</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </Field>
-                <Field label="Maintenance mensuelle">
-                  <Select
-                    value={draft.monthlyMaint}
-                    onValueChange={(v) => set("monthlyMaint", v as Machine["monthlyMaint"])}
-                  >
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="done">Faite</SelectItem>
-                      <SelectItem value="not_done">À faire</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </Field>
+                {kind === "ACCESS" ? (
+                  <Field label="System Check">
+                    <Select
+                      value={draft.asdStatus === "valid" ? "valid" : "invalid"}
+                      onValueChange={(v) => {
+                        set("asdStatus", v as Machine["asdStatus"]);
+                        set("asdLabel", "System Check");
+                      }}
+                    >
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="valid">Valide</SelectItem>
+                        <SelectItem value="invalid">Non valide</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </Field>
+                ) : (
+                  <>
+                    <Field label="ASD">
+                      <Select
+                        value={draft.asdStatus}
+                        onValueChange={(v) => set("asdStatus", v as Machine["asdStatus"])}
+                      >
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="valid">Valide</SelectItem>
+                          <SelectItem value="pending">À faire</SelectItem>
+                          <SelectItem value="fail_precision">Échec précision</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </Field>
+                    <Field label="Maintenance mensuelle">
+                      <Select
+                        value={draft.monthlyMaint ?? "not_done"}
+                        onValueChange={(v) => set("monthlyMaint", v as Machine["monthlyMaint"])}
+                      >
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="done">Faite</SelectItem>
+                          <SelectItem value="not_done">À faire</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </Field>
+                  </>
+                )}
               </div>
 
               <div className="rounded-xl border bg-muted/40 p-4 space-y-4">

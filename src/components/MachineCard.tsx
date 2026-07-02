@@ -145,33 +145,30 @@ export function MachineCard({
       <div className="flex flex-wrap gap-1.5 text-[11px]">
         <Badge
           icon={<Activity className="h-3 w-3" />}
-          label={`ADAM ${
-            machine.adam === "fonctionnelle" ? "OK" : "KO"
-          }`}
-          tone={
-            machine.adam === "fonctionnelle"
-              ? "success"
-              : "danger"
-          }
+          label={`ADAM ${machine.adam === "fonctionnelle" ? "OK" : "KO"}`}
+          tone={machine.adam === "fonctionnelle" ? "success" : "danger"}
         />
 
-        <Badge
-          icon={<CheckCircle2 className="h-3 w-3" />}
-          label={`ASD ${asdLabel(machine.asdStatus)}`}
-          tone={asdTone(machine.asdStatus)}
-        />
-
-        <Badge
-          icon={<Wrench className="h-3 w-3" />}
-          label={`Maint. mensuelle ${
-            machine.monthlyMaint === "done" ? "✓" : "✗"
-          }`}
-          tone={
-            machine.monthlyMaint === "done"
-              ? "success"
-              : "danger"
-          }
-        />
+        {kind === "ACCESS" ? (
+          <Badge
+            icon={<CheckCircle2 className="h-3 w-3" />}
+            label={`System Check ${systemCheckLabel(machine.asdStatus)}`}
+            tone={systemCheckTone(machine.asdStatus)}
+          />
+        ) : (
+          <>
+            <Badge
+              icon={<CheckCircle2 className="h-3 w-3" />}
+              label={`ASD ${asdLabel(machine.asdStatus)}`}
+              tone={asdTone(machine.asdStatus)}
+            />
+            <Badge
+              icon={<Wrench className="h-3 w-3" />}
+              label={`Maint. mensuelle ${machine.monthlyMaint === "done" ? "✓" : "✗"}`}
+              tone={machine.monthlyMaint === "done" ? "success" : "danger"}
+            />
+          </>
+        )}
 
         <Badge
           icon={<Calendar className="h-3 w-3" />}
@@ -306,6 +303,16 @@ function Counter({
       </div>
     </div>
   );
+}
+
+function systemCheckLabel(s: Machine["asdStatus"]) {
+  return s === "valid" ? "valide" : "non valide";
+}
+
+function systemCheckTone(
+  s: Machine["asdStatus"],
+): "success" | "danger" | "warning" | "neutral" {
+  return s === "valid" ? "success" : "danger";
 }
 
 function asdLabel(s: Machine["asdStatus"]) {

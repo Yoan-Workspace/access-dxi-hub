@@ -47,7 +47,7 @@ function defaultDraft(kind: MachineKind): Omit<Machine, "id"> {
     lastDate: now.toISOString().slice(0, 19),
     flags: [],
     pmRef: {
-      period: 6,
+      period: 12,
       month: months[now.getMonth()],
       year: now.getFullYear(),
     },
@@ -58,8 +58,9 @@ function defaultDraft(kind: MachineKind): Omit<Machine, "id"> {
     problems: [],
     repairs: [],
     localisation: "BSL2",
-    asdStatus: "pending",
-    monthlyMaint: "not_done",
+    ...(kind === "ACCESS"
+      ? { asdStatus: "valid" as const, asdLabel: "System Check" }
+      : { asdStatus: "pending" as const, monthlyMaint: "not_done" as const }),
   };
 }
 
@@ -167,8 +168,8 @@ export function AddMachineDialog({ open, onOpenChange, onCreate }: Props) {
           </div>
 
           <p className="text-xs text-muted-foreground">
-            Les champs PM, ASD, flags et listes de suivi pourront être complétés après
-            création via l&apos;édition de la machine.
+            La PM par défaut est planifiée sur 12 mois. Les champs de suivi pourront être
+            complétés après création via l&apos;édition de la machine.
           </p>
         </div>
 

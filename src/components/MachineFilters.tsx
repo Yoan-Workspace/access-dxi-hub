@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import {
   AlertCircle,
   Calendar,
@@ -92,7 +92,7 @@ function activeLabel(filters: MachineFiltersState, group: GroupId): string | nul
     case "track":
       if (filters.track === "flags") return "Flags";
       if (filters.track === "improve") return "Improv.";
-      if (filters.track === "asd-pending") return "ASD";
+      if (filters.track === "asd-pending") return "ASD / Sys.";
       return null;
   }
 }
@@ -237,7 +237,7 @@ export function MachineFilters({ filters, stats, onChange, onReset }: Props) {
                   onClick={() => set("track", "asd-pending")}
                   tone="warning"
                 >
-                  ASD ({stats.asdPending})
+                  ASD / System Check ({stats.asdPending})
                 </Chip>
               </>
             )}
@@ -299,6 +299,23 @@ function FilterBanner({
   onClose: () => void;
   children: React.ReactNode;
 }) {
+  const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const handleEnter = () => {
+    if (closeTimer.current) {
+      clearTimeout(closeTimer.current);
+      closeTimer.current = null;
+    }
+    onOpen();
+  };
+
+  const handleLeave = () => {
+    closeTimer.current = setTimeout(() => {
+      onClose();
+      closeTimer.current = null;
+    }, 500);
+  };
+
   const icons: Record<GroupId, React.ReactNode> = {
     type: <Microchip className="h-3.5 w-3.5" />,
     status: <AlertCircle className="h-3.5 w-3.5" />,
@@ -309,8 +326,8 @@ function FilterBanner({
   return (
     <div
       className="relative"
-      onMouseEnter={onOpen}
-      onMouseLeave={onClose}
+      onMouseEnter={handleEnter}
+      onMouseLeave={handleLeave}
     >
       <button
         type="button"
@@ -339,13 +356,20 @@ function FilterBanner({
 
       <div
         className={cn(
-          "absolute left-0 top-[calc(100%+4px)] z-30 min-w-[220px] rounded-xl border bg-popover p-2 shadow-lg transition-all",
-          open
-            ? "pointer-events-auto visible translate-y-0 opacity-100"
-            : "pointer-events-none invisible -translate-y-1 opacity-0",
+          "absolute left-0 top-full z-30 pt-1.5",
+          open ? "pointer-events-auto" : "pointer-events-none",
         )}
       >
-        <div className="flex flex-wrap gap-1.5">{children}</div>
+        <div
+          className={cn(
+            "min-w-[220px] rounded-xl border bg-popover p-2 shadow-lg transition-all",
+            open
+              ? "visible translate-y-0 opacity-100"
+              : "invisible -translate-y-1 opacity-0",
+          )}
+        >
+          <div className="flex flex-wrap gap-1.5">{children}</div>
+        </div>
       </div>
     </div>
   );
