@@ -23,6 +23,7 @@ import { machineKind } from "@/lib/types";
 import { useTheme } from "@/lib/theme";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { useEffect } from "react";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -99,8 +100,6 @@ function getNextPm(machine: Machine) {
   };
 }
 
-
-
 function HomePage() {
   const { theme, toggle } = useTheme();
   const qc = useQueryClient();
@@ -108,6 +107,26 @@ function HomePage() {
     queryKey: ["machines"],
     queryFn: fetchMachines,
   });
+
+  useEffect(() => {
+  const events = new EventSource(
+    "http://localhost:3000/api/events"
+  );
+
+  events.onmessage = () => {
+    toast.info(
+      "Base de données mise à jour"
+    );
+
+    qc.invalidateQueries({
+      queryKey: ["machines"],
+    });
+  };
+
+  return () => {
+    events.close();
+  };
+}, [qc]);
 
   const mutation = useMutation({
     mutationFn: updateMachine,
