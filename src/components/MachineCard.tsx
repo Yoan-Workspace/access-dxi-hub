@@ -10,6 +10,7 @@ import {
   Calendar,
   Activity,
 } from "lucide-react";
+import type { EditMachineTab } from "@/components/EditMachineDialog";
 import type { Machine } from "@/lib/types";
 import { machineKind } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -56,7 +57,7 @@ export function MachineCard({
   onEdit,
 }: {
   machine: Machine;
-  onEdit: () => void;
+  onEdit: (tab?: EditMachineTab) => void;
 }) {
   const kind = machineKind(machine);
   const s = statusMap[machine.status];
@@ -68,19 +69,19 @@ export function MachineCard({
 
   return (
     <div
-      onClick={onEdit}
+      onClick={() => onEdit("general")}
       className={cn(
         "group relative flex cursor-pointer flex-col gap-4 rounded-2xl border bg-card p-5",
         "transition-all duration-200",
         "hover:-translate-y-1",
         "hover:border-primary/40",
-        "hover:shadow-[0_8px_30px_-12px_rgba(0,0,0,0.12)]"
+        "hover:shadow-[0_8px_30px_-12px_rgba(0,0,0,0.12)]",
       )}
     >
       <span
         className={cn(
           "absolute left-5 right-5 top-0 h-[3px] rounded-b-full",
-          kind === "MP" ? "bg-mp" : "bg-access"
+          kind === "MP" ? "bg-mp" : "bg-access",
         )}
       />
 
@@ -90,23 +91,14 @@ export function MachineCard({
             <span
               className={cn(
                 "inline-flex h-5 items-center rounded-full px-2 text-[10px] font-semibold tracking-wider uppercase",
-                kind === "MP"
-                  ? "bg-mp/10 text-mp"
-                  : "bg-access/10 text-access"
+                kind === "MP" ? "bg-mp/10 text-mp" : "bg-access/10 text-access",
               )}
             >
               {kind === "MP" ? "DXI 9000" : "Access 2"}
             </span>
 
-            <span
-              className={cn(
-                "inline-flex items-center gap-1 text-xs",
-                s.color
-              )}
-            >
-              <span
-                className={cn("h-1.5 w-1.5 rounded-full", s.ring)}
-              />
+            <span className={cn("inline-flex items-center gap-1 text-xs", s.color)}>
+              <span className={cn("h-1.5 w-1.5 rounded-full", s.ring)} />
               {s.label}
             </span>
           </div>
@@ -133,7 +125,7 @@ export function MachineCard({
         <button
           onClick={(e) => {
             e.stopPropagation();
-            onEdit();
+            onEdit("general");
           }}
           aria-label="Éditer"
           className="rounded-lg border border-transparent p-1.5 text-muted-foreground transition hover:border-border hover:bg-secondary hover:text-foreground"
@@ -177,37 +169,41 @@ export function MachineCard({
         />
       </div>
 
-      <div className="grid grid-cols-4 gap-2">
+      <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
         <Counter
-          icon={<Flag className="h-3.5 w-3.5" />}
+          icon={<Flag className="h-4 w-4 shrink-0" />}
           pending={flagsP}
           total={machine.flags.length}
           label="Flags"
           tone="warning"
+          onClick={() => onEdit("flags")}
         />
 
         <Counter
-          icon={<XCircle className="h-3.5 w-3.5" />}
+          icon={<XCircle className="h-4 w-4 shrink-0" />}
           pending={probsP}
           total={machine.problems.length}
           label="Problèmes"
           tone="danger"
+          onClick={() => onEdit("problems")}
         />
 
         <Counter
-          icon={<AlertTriangle className="h-3.5 w-3.5" />}
+          icon={<AlertTriangle className="h-4 w-4 shrink-0" />}
           pending={repairsP}
           total={machine.repairs.length}
           label="Réparations"
           tone="warning"
+          onClick={() => onEdit("repairs")}
         />
 
         <Counter
-          icon={<Lightbulb className="h-3.5 w-3.5" />}
+          icon={<Lightbulb className="h-4 w-4 shrink-0" />}
           value={improvP}
           label="Improv."
           tone="improve"
           activeOnly
+          onClick={() => onEdit("improvements")}
         />
       </div>
     </div>
@@ -235,7 +231,7 @@ function Badge({
     <span
       className={cn(
         "inline-flex items-center gap-1 rounded-md px-2 py-0.5 font-medium",
-        toneCls
+        toneCls,
       )}
     >
       {icon}
@@ -252,6 +248,7 @@ function Counter({
   label,
   tone,
   activeOnly = false,
+  onClick,
 }: {
   icon: React.ReactNode;
   pending?: number;
@@ -260,48 +257,63 @@ function Counter({
   label: string;
   tone: "danger" | "warning" | "improve";
   activeOnly?: boolean;
+  onClick: () => void;
 }) {
   const count = activeOnly ? (value ?? 0) : (pending ?? 0);
   const active = count > 0;
 
   const toneCls = active
     ? {
+        danger: "text-danger border-danger/30 hover:bg-danger/10",
+        warning: "text-warning border-warning/30 hover:bg-warning/10",
+        improve: "text-improve border-improve/30 hover:bg-improve/10",
+      }[tone]
+    : "text-muted-foreground border-border hover:border-primary/30 hover:bg-secondary/80";
+
+  const numberCls = active
+    ? {
         danger: "text-danger",
         warning: "text-warning",
         improve: "text-improve",
       }[tone]
-    : "text-muted-foreground";
+    : "text-foreground";
 
   return (
-    <div className="rounded-lg border bg-background/40 px-2 py-1.5">
-      <div
-        className={cn(
-          "flex items-center gap-1 text-[11px] font-medium",
-          toneCls,
-        )}
-      >
+    <button
+      type="button"
+      onClick={(e) => {
+        e.stopPropagation();
+        onClick();
+      }}
+      className={cn(
+        "flex min-h-[4.75rem] w-full flex-col justify-between rounded-xl border bg-background/50 px-3 py-2.5 text-left transition",
+        "hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40",
+        toneCls,
+      )}
+    >
+      <div className="flex min-w-0 items-start gap-1.5 text-[11px] font-medium leading-snug">
         {icon}
-        <span>{label}</span>
+        <span className="break-words">{label}</span>
       </div>
 
-      <div className="mt-0.5 text-sm font-semibold tabular-nums">
+      <div className="mt-2 text-base font-semibold tabular-nums leading-none">
         {activeOnly ? (
-          <span className={cn(active ? toneCls : "text-muted-foreground")}>
+          <span className={cn(active ? numberCls : "text-muted-foreground")}>
             {count}
             {count > 0 && (
-              <span className="ml-0.5 text-[10px] font-normal opacity-80">
+              <span className="ml-1 text-[10px] font-normal opacity-80">
                 {count > 1 ? "actifs" : "actif"}
               </span>
             )}
           </span>
         ) : (
           <>
-            <span className={cn(active ? toneCls : "text-foreground")}>{count}</span>
-            <span className="text-muted-foreground">/{total ?? 0}</span>
+            <span className={cn(active ? numberCls : "text-foreground")}>{count}</span>
+            <span className="text-sm font-medium text-muted-foreground">/{total ?? 0}</span>
           </>
         )}
       </div>
-    </div>
+    </button>
   );
 }
 
@@ -329,7 +341,7 @@ function asdLabel(s: Machine["asdStatus"]) {
 }
 
 function asdTone(
-  s: Machine["asdStatus"]
+  s: Machine["asdStatus"],
 ): "success" | "danger" | "warning" | "neutral" {
   switch (s) {
     case "valid":

@@ -12,7 +12,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { MachineCard } from "@/components/MachineCard";
-import { EditMachineDialog } from "@/components/EditMachineDialog";
+import { EditMachineDialog, type EditMachineTab } from "@/components/EditMachineDialog";
 import { AddMachineDialog } from "@/components/AddMachineDialog";
 import {
   defaultFilters,
@@ -167,7 +167,13 @@ function HomePage() {
   const [filters, setFilters] = useState<MachineFiltersState>(defaultFilters);
   const [query, setQuery] = useState("");
   const [editing, setEditing] = useState<Machine | null>(null);
+  const [editTab, setEditTab] = useState<EditMachineTab>("general");
   const [adding, setAdding] = useState(false);
+
+  const openEdit = (machine: Machine, tab: EditMachineTab = "general") => {
+    setEditing(machine);
+    setEditTab(tab);
+  };
 
   const stats = useMemo(() => {
     const now = new Date();
@@ -309,7 +315,7 @@ function HomePage() {
           ) : (
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
               {filtered.map((m) => (
-                <MachineCard key={m.id} machine={m} onEdit={() => setEditing(m)} />
+                <MachineCard key={m.id} machine={m} onEdit={(tab) => openEdit(m, tab)} />
               ))}
             </div>
           )}
@@ -323,7 +329,13 @@ function HomePage() {
       <EditMachineDialog
         machine={editing}
         open={!!editing}
-        onOpenChange={(o) => !o && setEditing(null)}
+        initialTab={editTab}
+        onOpenChange={(o) => {
+          if (!o) {
+            setEditing(null);
+            setEditTab("general");
+          }
+        }}
         onSave={async (m) => {
           await updateMutation.mutateAsync(m);
         }}

@@ -33,9 +33,17 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 
+export type EditMachineTab =
+  | "general"
+  | "flags"
+  | "problems"
+  | "repairs"
+  | "improvements";
+
 interface Props {
   machine: Machine | null;
   open: boolean;
+  initialTab?: EditMachineTab;
   onOpenChange: (open: boolean) => void;
   onSave: (m: Machine) => Promise<void> | void;
   onDelete?: (id: number) => Promise<void> | void;
@@ -84,17 +92,24 @@ function getNextPmInfo(pmRef: {
 export function EditMachineDialog({
   machine,
   open,
+  initialTab = "general",
   onOpenChange,
   onSave,
   onDelete,
 }: Props) {
   const [draft, setDraft] = useState<Machine | null>(machine);
+  const [tab, setTab] = useState<EditMachineTab>(initialTab);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
-    setDraft(machine ? structuredClone(machine) : null);
-  }, [machine]);
+    if (open && machine) {
+      setDraft(structuredClone(machine));
+      setTab(initialTab);
+    } else if (!machine) {
+      setDraft(null);
+    }
+  }, [machine, open, initialTab]);
 
   if (!draft) return null;
 
@@ -143,7 +158,11 @@ const remove = async () => {
           </DialogTitle>
         </DialogHeader>
 
-        <Tabs defaultValue="general" className="flex max-h-[70vh] flex-col">
+        <Tabs
+          value={tab}
+          onValueChange={(v) => setTab(v as EditMachineTab)}
+          className="flex max-h-[70vh] flex-col"
+        >
           <TabsList className="mx-6 mt-4 w-fit">
             <TabsTrigger value="general">Général</TabsTrigger>
             <TabsTrigger value="flags">Flags</TabsTrigger>
