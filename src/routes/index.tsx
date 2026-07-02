@@ -183,6 +183,7 @@ function HomePage() {
       ok: machines.filter((m) => m.status === "ok").length,
       maintenance: machines.filter((m) => m.status === "maintenance").length,
       danger: machines.filter((m) => m.status === "danger").length,
+      activeProblems: machines.filter((m) => m.problems.some((p) => !p.completed)).length,
       flags: machines.filter((m) => pending(m.flags)).length,
       improve: machines.filter((m) => pending(m.improvements)).length,
       asdPending: machines.filter((m) => m.asdStatus !== "valid").length,

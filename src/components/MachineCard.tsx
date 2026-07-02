@@ -207,10 +207,10 @@ export function MachineCard({
 
         <Counter
           icon={<Lightbulb className="h-3.5 w-3.5" />}
-          pending={improvP}
-          total={machine.improvements.length}
+          value={improvP}
           label="Improv."
           tone="improve"
+          activeOnly
         />
       </div>
     </div>
@@ -251,16 +251,21 @@ function Counter({
   icon,
   pending,
   total,
+  value,
   label,
   tone,
+  activeOnly = false,
 }: {
   icon: React.ReactNode;
-  pending: number;
-  total: number;
+  pending?: number;
+  total?: number;
+  value?: number;
   label: string;
   tone: "danger" | "warning" | "improve";
+  activeOnly?: boolean;
 }) {
-  const active = pending > 0;
+  const count = activeOnly ? (value ?? 0) : (pending ?? 0);
+  const active = count > 0;
 
   const toneCls = active
     ? {
@@ -275,7 +280,7 @@ function Counter({
       <div
         className={cn(
           "flex items-center gap-1 text-[11px] font-medium",
-          toneCls
+          toneCls,
         )}
       >
         {icon}
@@ -283,14 +288,21 @@ function Counter({
       </div>
 
       <div className="mt-0.5 text-sm font-semibold tabular-nums">
-        <span
-          className={cn(
-            active ? toneCls : "text-foreground"
-          )}
-        >
-          {pending}
-        </span>
-        <span className="text-muted-foreground">/{total}</span>
+        {activeOnly ? (
+          <span className={cn(active ? toneCls : "text-muted-foreground")}>
+            {count}
+            {count > 0 && (
+              <span className="ml-0.5 text-[10px] font-normal opacity-80">
+                {count > 1 ? "actifs" : "actif"}
+              </span>
+            )}
+          </span>
+        ) : (
+          <>
+            <span className={cn(active ? toneCls : "text-foreground")}>{count}</span>
+            <span className="text-muted-foreground">/{total ?? 0}</span>
+          </>
+        )}
       </div>
     </div>
   );
