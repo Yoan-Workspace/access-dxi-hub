@@ -60,7 +60,7 @@ function defaultDraft(kind: MachineKind): Omit<Machine, "id"> {
     localisation: "BSL2",
     ...(kind === "ACCESS"
       ? { asdStatus: "valid" as const, asdLabel: "System Check" }
-      : { asdStatus: "pending" as const, monthlyMaint: "not_done" as const }),
+      : { asdStatus: "valid" as const, monthlyMaint: "not_done" as const }),
   };
 }
 

@@ -1,5 +1,11 @@
 export type MachineStatus = "ok" | "maintenance" | "danger";
-export type AsdStatus = "valid" | "pending" | "fail_precision" | "warning" | "invalid";
+export type AsdStatus =
+  | "valid"
+  | "non_functional"
+  | "fail_low_volume"
+  | "fail_precision"
+  | "pending"
+  | "invalid";
 export type AdamStatus = "fonctionnelle" | "non_fonctionnelle";
 export type MonthlyMaint = "done" | "not_done";
 export type Localisation = "BSL2" | "Thermal" | string;

@@ -328,11 +328,15 @@ function systemCheckTone(
 function asdLabel(s: Machine["asdStatus"]) {
   switch (s) {
     case "valid":
-      return "valide";
+      return "fonctionnel";
+    case "non_functional":
+      return "non fonctionnel";
+    case "fail_low_volume":
+      return "low volume failed";
+    case "fail_precision":
+      return "precision failed";
     case "pending":
       return "à faire";
-    case "fail_precision":
-      return "échec";
     default:
       return s;
   }
@@ -344,8 +348,10 @@ function asdTone(
   switch (s) {
     case "valid":
       return "success";
-    case "fail_precision":
+    case "non_functional":
       return "danger";
+    case "fail_low_volume":
+    case "fail_precision":
     case "pending":
       return "warning";
     default:

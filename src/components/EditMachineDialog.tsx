@@ -246,9 +246,15 @@ const remove = async () => {
                       >
                         <SelectTrigger><SelectValue /></SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="valid">Valide</SelectItem>
-                          <SelectItem value="pending">À faire</SelectItem>
-                          <SelectItem value="fail_precision">Échec précision</SelectItem>
+                          <SelectItem value="valid">Fonctionnel</SelectItem>
+                          <SelectItem value="non_functional">Non fonctionnel</SelectItem>
+                          <SelectItem value="fail_low_volume">Low Volume Failed</SelectItem>
+                          <SelectItem value="fail_precision">
+                            Precision pipettors Failed
+                          </SelectItem>
+                          {draft.asdStatus === "pending" && (
+                            <SelectItem value="pending">À faire</SelectItem>
+                          )}
                         </SelectContent>
                       </Select>
                     </Field>
