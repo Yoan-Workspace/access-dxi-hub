@@ -313,7 +313,7 @@ function HomePage() {
               Aucune machine ne correspond aux critères sélectionnés.
             </div>
           ) : (
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-3">
               {filtered.map((m) => (
                 <MachineCard key={m.id} machine={m} onEdit={(tab) => openEdit(m, tab)} />
               ))}
