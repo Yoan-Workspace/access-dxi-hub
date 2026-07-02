@@ -16,6 +16,72 @@ const DATA_PATH = "./data/data.json";
 
 const clients = [];
 
+function readData() {
+  return JSON.parse(fs.readFileSync(DATA_PATH, "utf8"));
+}
+
+function writeData(data) {
+  fs.writeFileSync(DATA_PATH, JSON.stringify(data, null, 2));
+}
+
+function isMpMachine(machine) {
+  return !machine.name.toLowerCase().startsWith("access");
+}
+
+function todayKey(date = new Date()) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function maybeResetMonthlyMaint() {
+  const now = new Date();
+  if (now.getDate() !== 1) {
+    return { performed: false };
+  }
+
+  const today = todayKey(now);
+  const data = readData();
+
+  if (data.lastMonthlyMaintReset === today) {
+    return { performed: false, reason: "already-reset-today" };
+  }
+
+  let resetCount = 0;
+
+  for (const machine of data.machines) {
+    if (isMpMachine(machine) && machine.monthlyMaint === "done") {
+      machine.monthlyMaint = "not_done";
+      resetCount++;
+    }
+  }
+
+  data.lastMonthlyMaintReset = today;
+  writeData(data);
+
+  if (resetCount > 0) {
+    console.log(
+      `Maintenance mensuelle MP réinitialisée (${resetCount} machine(s)) — ${today}`,
+    );
+    notifyClients();
+  } else {
+    console.log(
+      `Reset mensuel enregistré — ${today} (aucune MP « faite » à réinitialiser)`,
+    );
+  }
+
+  return { performed: true, resetCount, date: today };
+}
+
+function scheduleMonthlyMaintCheck() {
+  setInterval(() => {
+    if (new Date().getDate() === 1) {
+      maybeResetMonthlyMaint();
+    }
+  }, 60 * 60 * 1000);
+}
+
 function notifyClients() {
   clients.forEach((client) => {
     client.write(
@@ -108,9 +174,9 @@ setupDataWatch();
 //
 
 app.get("/api/machines", (req, res) => {
-  const data = JSON.parse(
-    fs.readFileSync(DATA_PATH, "utf8")
-  );
+  maybeResetMonthlyMaint();
+
+  const data = readData();
 
   res.json({
     machines: data.machines,
@@ -118,9 +184,7 @@ app.get("/api/machines", (req, res) => {
 });
 
 app.put("/api/machines/:id", (req, res) => {
-  const data = JSON.parse(
-    fs.readFileSync(DATA_PATH, "utf8")
-  );
+  const data = readData();
 
   const id = Number(req.params.id);
 
@@ -136,10 +200,7 @@ app.put("/api/machines/:id", (req, res) => {
 
   data.machines[index] = req.body;
 
-  fs.writeFileSync(
-    DATA_PATH,
-    JSON.stringify(data, null, 2)
-  );
+  writeData(data);
 
   // 🔔 Notification aux clients connectés
   notifyClients();
@@ -148,9 +209,7 @@ app.put("/api/machines/:id", (req, res) => {
 });
 
 app.post("/api/machines", (req, res) => {
-  const data = JSON.parse(
-    fs.readFileSync(DATA_PATH, "utf8")
-  );
+  const data = readData();
 
   const maxId = data.machines.reduce(
     (max, machine) => Math.max(max, machine.id),
@@ -181,10 +240,7 @@ app.post("/api/machines", (req, res) => {
 
   data.machines.push(newMachine);
 
-  fs.writeFileSync(
-    DATA_PATH,
-    JSON.stringify(data, null, 2)
-  );
+  writeData(data);
 
   notifyClients();
 
@@ -192,9 +248,7 @@ app.post("/api/machines", (req, res) => {
 });
 
 app.delete("/api/machines/:id", (req, res) => {
-  const data = JSON.parse(
-    fs.readFileSync(DATA_PATH, "utf8")
-  );
+  const data = readData();
 
   const id = Number(req.params.id);
   const index = data.machines.findIndex((m) => m.id === id);
@@ -207,10 +261,7 @@ app.delete("/api/machines/:id", (req, res) => {
 
   data.machines.splice(index, 1);
 
-  fs.writeFileSync(
-    DATA_PATH,
-    JSON.stringify(data, null, 2)
-  );
+  writeData(data);
 
   notifyClients();
 
@@ -233,4 +284,13 @@ app.listen(3000, () => {
   console.log(
     "Serveur lancé sur http://localhost:3000"
   );
+
+  const reset = maybeResetMonthlyMaint();
+  if (reset.performed) {
+    console.log(
+      `Vérification maintenance mensuelle au démarrage: ${reset.resetCount} MP réinitialisée(s)`,
+    );
+  }
+
+  scheduleMonthlyMaintCheck();
 });
