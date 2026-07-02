@@ -35,17 +35,27 @@ function todayKey(date = new Date()) {
   return `${year}-${month}-${day}`;
 }
 
+function monthKey(date = new Date()) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  return `${year}-${month}`;
+}
+
 function maybeResetMonthlyMaint() {
   const now = new Date();
-  if (now.getDate() !== 1) {
-    return { performed: false };
-  }
-
   const today = todayKey(now);
+  const thisMonth = monthKey(now);
   const data = readData();
 
+  // Évite une double RAZ le même jour
   if (data.lastMonthlyMaintReset === today) {
     return { performed: false, reason: "already-reset-today" };
+  }
+
+  // Déjà fait ce mois-ci (le 1er ou en rattrapage les 3, 4, 5…)
+  const lastReset = data.lastMonthlyMaintReset ?? "";
+  if (lastReset.startsWith(thisMonth)) {
+    return { performed: false, reason: "already-reset-this-month" };
   }
 
   let resetCount = 0;
@@ -76,9 +86,7 @@ function maybeResetMonthlyMaint() {
 
 function scheduleMonthlyMaintCheck() {
   setInterval(() => {
-    if (new Date().getDate() === 1) {
-      maybeResetMonthlyMaint();
-    }
+    maybeResetMonthlyMaint();
   }, 60 * 60 * 1000);
 }
 
