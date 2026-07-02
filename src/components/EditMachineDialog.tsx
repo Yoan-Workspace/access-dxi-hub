@@ -5,6 +5,17 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import {
   Dialog,
   DialogContent,
   DialogFooter,
@@ -26,6 +37,7 @@ interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSave: (m: Machine) => Promise<void> | void;
+  onDelete?: (id: number) => Promise<void> | void;
 }
 
 const months = [
@@ -68,9 +80,16 @@ function getNextPmInfo(pmRef: {
   };
 }
 
-export function EditMachineDialog({ machine, open, onOpenChange, onSave }: Props) {
+export function EditMachineDialog({
+  machine,
+  open,
+  onOpenChange,
+  onSave,
+  onDelete,
+}: Props) {
   const [draft, setDraft] = useState<Machine | null>(machine);
   const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     setDraft(machine ? structuredClone(machine) : null);
@@ -98,6 +117,19 @@ const save = async () => {
     onOpenChange(false);
   } finally {
     setSaving(false);
+  }
+};
+
+const remove = async () => {
+  if (!draft || !onDelete) return;
+
+  setDeleting(true);
+
+  try {
+    await onDelete(draft.id);
+    onOpenChange(false);
+  } finally {
+    setDeleting(false);
   }
 };
 
@@ -351,13 +383,60 @@ const save = async () => {
           </div>
         </Tabs>
 
-        <DialogFooter className="border-t bg-muted/30 px-6 py-3">
-          <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={saving}>
-            Annuler
-          </Button>
-          <Button onClick={save} disabled={saving}>
-            {saving ? "Enregistrement…" : "Enregistrer"}
-          </Button>
+        <DialogFooter className="flex-col gap-3 border-t bg-muted/30 px-6 py-3 sm:flex-row sm:items-center sm:justify-between">
+          {onDelete ? (
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive sm:w-auto"
+                  disabled={saving || deleting}
+                >
+                  <Trash2 className="h-4 w-4" />
+                  Supprimer
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Supprimer {draft.name} ?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Cette action est irréversible. La machine sera retirée de la base
+                    de données.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel disabled={deleting}>Annuler</AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={(e) => {
+                      e.preventDefault();
+                      void remove();
+                    }}
+                    disabled={deleting}
+                    className="bg-destructive text-white hover:bg-destructive/90"
+                  >
+                    {deleting ? "Suppression…" : "Supprimer définitivement"}
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          ) : (
+            <span />
+          )}
+
+          <div className="flex w-full gap-2 sm:w-auto">
+            <Button
+              variant="ghost"
+              onClick={() => onOpenChange(false)}
+              disabled={saving || deleting}
+              className="flex-1 sm:flex-none"
+            >
+              Annuler
+            </Button>
+            <Button onClick={save} disabled={saving || deleting} className="flex-1 sm:flex-none">
+              {saving ? "Enregistrement…" : "Enregistrer"}
+            </Button>
+          </div>
         </DialogFooter>
       </DialogContent>
     </Dialog>

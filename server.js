@@ -191,6 +191,32 @@ app.post("/api/machines", (req, res) => {
   res.status(201).json(newMachine);
 });
 
+app.delete("/api/machines/:id", (req, res) => {
+  const data = JSON.parse(
+    fs.readFileSync(DATA_PATH, "utf8")
+  );
+
+  const id = Number(req.params.id);
+  const index = data.machines.findIndex((m) => m.id === id);
+
+  if (index === -1) {
+    return res.status(404).json({
+      error: "Machine introuvable",
+    });
+  }
+
+  data.machines.splice(index, 1);
+
+  fs.writeFileSync(
+    DATA_PATH,
+    JSON.stringify(data, null, 2)
+  );
+
+  notifyClients();
+
+  res.json({ ok: true });
+});
+
 //
 // Front React compilé
 //

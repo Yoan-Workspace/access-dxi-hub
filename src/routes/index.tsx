@@ -22,6 +22,7 @@ import {
 import {
   API_CONFIGURED,
   createMachine,
+  deleteMachine,
   fetchMachines,
   updateMachine,
 } from "@/lib/api";
@@ -149,6 +150,18 @@ function HomePage() {
       toast.success(`Machine ${created.name} créée`);
     },
     onError: (e) => toast.error(`Échec de la création : ${(e as Error).message}`),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: deleteMachine,
+    onSuccess: (_data, id) => {
+      qc.setQueryData<Machine[]>(["machines"], (prev) =>
+        prev?.filter((m) => m.id !== id) ?? prev,
+      );
+      setEditing(null);
+      toast.success("Machine supprimée");
+    },
+    onError: (e) => toast.error(`Échec de la suppression : ${(e as Error).message}`),
   });
 
   const [filters, setFilters] = useState<MachineFiltersState>(defaultFilters);
@@ -313,6 +326,13 @@ function HomePage() {
         onSave={async (m) => {
           await updateMutation.mutateAsync(m);
         }}
+        onDelete={
+          API_CONFIGURED
+            ? async (id) => {
+                await deleteMutation.mutateAsync(id);
+              }
+            : undefined
+        }
       />
 
       <AddMachineDialog

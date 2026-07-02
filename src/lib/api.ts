@@ -6,6 +6,7 @@ import type { Machine } from "./types";
 //   GET    {API}/api/machines           -> { machines: Machine[] }
 //   POST   {API}/api/machines           -> Machine (body: Machine sans id)
 //   PUT    {API}/api/machines/:id       -> Machine (body: Machine)
+//   DELETE {API}/api/machines/:id       -> { ok: true }
 // Si VITE_API_URL n'est pas défini, on lit /machines.json (mode démo, lecture seule).
 
 const API_BASE = (import.meta as { env?: Record<string, string | undefined> }).env
@@ -56,4 +57,16 @@ export async function updateMachine(m: Machine): Promise<Machine> {
   if (!res.ok) throw new Error(`PUT /api/machines/${m.id}: ${res.status}`);
 
   return (await res.json()) as Machine;
+}
+
+export async function deleteMachine(id: number): Promise<void> {
+  if (!API_BASE) {
+    throw new Error("API non configurée — impossible de supprimer une machine");
+  }
+
+  const res = await fetch(`${API_BASE}/api/machines/${id}`, {
+    method: "DELETE",
+  });
+
+  if (!res.ok) throw new Error(`DELETE /api/machines/${id}: ${res.status}`);
 }
