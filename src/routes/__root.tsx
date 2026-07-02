@@ -53,17 +53,10 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
 });
 
 function RootComponent() {
-  useEffect(() => {
-    document.documentElement.lang = "fr";
-    document.documentElement.setAttribute("translate", "no");
-    document.documentElement.classList.add("notranslate");
-    document.body.classList.add("notranslate");
-  }, []);
-
   return (
-    <div className="notranslate" translate="no">
+    <>
       <Outlet />
       <Toaster richColors position="top-right" />
-    </div>
+    </>
   );
 }
