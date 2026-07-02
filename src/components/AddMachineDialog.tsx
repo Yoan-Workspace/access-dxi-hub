@@ -93,7 +93,6 @@ export function AddMachineDialog({ open, onOpenChange, onCreate }: Props) {
     setSaving(true);
     try {
       await onCreate({ ...draft, name });
-      onOpenChange(false);
     } finally {
       setSaving(false);
     }

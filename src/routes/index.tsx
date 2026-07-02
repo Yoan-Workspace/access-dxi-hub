@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -29,6 +29,7 @@ import {
 import type { Machine } from "@/lib/types";
 import { machineKind } from "@/lib/types";
 import { useTheme } from "@/lib/theme";
+import { afterUiSettled } from "@/lib/ui";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/")({
@@ -115,6 +116,19 @@ function HomePage() {
     queryFn: fetchMachines,
   });
 
+  const [filters, setFilters] = useState<MachineFiltersState>(defaultFilters);
+  const [query, setQuery] = useState("");
+  const [editing, setEditing] = useState<Machine | null>(null);
+  const [editTab, setEditTab] = useState<EditMachineTab>("general");
+  const [adding, setAdding] = useState(false);
+
+  const dialogOpenRef = useRef(false);
+  const skipSseRef = useRef(0);
+
+  useEffect(() => {
+    dialogOpenRef.current = Boolean(editing) || adding;
+  }, [editing, adding]);
+
   useEffect(() => {
     if (!API_CONFIGURED) return;
 
@@ -123,6 +137,13 @@ function HomePage() {
 
     const source = new EventSource(`${apiBase}/api/events`);
     source.onmessage = () => {
+      if (skipSseRef.current > 0) {
+        skipSseRef.current -= 1;
+        return;
+      }
+
+      if (dialogOpenRef.current) return;
+
       toast.info("Base de données mise à jour");
       void qc.invalidateQueries({ queryKey: ["machines"] });
     };
@@ -130,45 +151,59 @@ function HomePage() {
     return () => source.close();
   }, [qc]);
 
+  const markLocalWrite = () => {
+    skipSseRef.current += 1;
+  };
+
+  const closeEditDialog = () => {
+    afterUiSettled(() => {
+      setEditing(null);
+      setEditTab("general");
+    });
+  };
+
+  const closeAddDialog = () => {
+    afterUiSettled(() => setAdding(false));
+  };
+
   const updateMutation = useMutation({
     mutationFn: updateMachine,
+    onMutate: markLocalWrite,
     onSuccess: (updated) => {
       qc.setQueryData<Machine[]>(["machines"], (prev) =>
         prev?.map((m) => (m.id === updated.id ? updated : m)) ?? prev,
       );
       toast.success("Machine mise à jour");
+      closeEditDialog();
     },
     onError: (e) => toast.error(`Échec de la sauvegarde : ${(e as Error).message}`),
   });
 
   const createMutation = useMutation({
     mutationFn: createMachine,
+    onMutate: markLocalWrite,
     onSuccess: (created) => {
       qc.setQueryData<Machine[]>(["machines"], (prev) =>
         prev ? [...prev, created] : [created],
       );
       toast.success(`Machine ${created.name} créée`);
+      closeAddDialog();
     },
     onError: (e) => toast.error(`Échec de la création : ${(e as Error).message}`),
   });
 
   const deleteMutation = useMutation({
     mutationFn: deleteMachine,
+    onMutate: markLocalWrite,
     onSuccess: (_data, id) => {
       qc.setQueryData<Machine[]>(["machines"], (prev) =>
         prev?.filter((m) => m.id !== id) ?? prev,
       );
-      setEditing(null);
       toast.success("Machine supprimée");
+      closeEditDialog();
     },
     onError: (e) => toast.error(`Échec de la suppression : ${(e as Error).message}`),
   });
-
-  const [filters, setFilters] = useState<MachineFiltersState>(defaultFilters);
-  const [query, setQuery] = useState("");
-  const [editing, setEditing] = useState<Machine | null>(null);
-  const [editTab, setEditTab] = useState<EditMachineTab>("general");
-  const [adding, setAdding] = useState(false);
 
   const openEdit = (machine: Machine, tab: EditMachineTab = "general") => {
     setEditing(machine);

@@ -14,7 +14,6 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import {
   Dialog,
@@ -101,13 +100,16 @@ export function EditMachineDialog({
   const [tab, setTab] = useState<EditMachineTab>(initialTab);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   useEffect(() => {
     if (open && machine) {
       setDraft(structuredClone(machine));
       setTab(initialTab);
+      setConfirmDelete(false);
     } else if (!machine) {
       setDraft(null);
+      setConfirmDelete(false);
     }
   }, [machine, open, initialTab]);
 
@@ -128,7 +130,6 @@ const save = async () => {
 
   try {
     await onSave(draft);
-    onOpenChange(false);
   } finally {
     setSaving(false);
   }
@@ -137,11 +138,11 @@ const save = async () => {
 const remove = async () => {
   if (!draft || !onDelete) return;
 
+  setConfirmDelete(false);
   setDeleting(true);
 
   try {
     await onDelete(draft.id);
-    onOpenChange(false);
   } finally {
     setDeleting(false);
   }
@@ -149,6 +150,7 @@ const remove = async () => {
 
 
   return (
+    <>
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[90vh] max-w-3xl overflow-hidden p-0">
         <DialogHeader className="border-b px-6 py-4">
@@ -429,41 +431,16 @@ const remove = async () => {
 
         <DialogFooter className="flex-col gap-3 border-t bg-muted/30 px-6 py-3 sm:flex-row sm:items-center sm:justify-between">
           {onDelete ? (
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="w-full border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive sm:w-auto"
-                  disabled={saving || deleting}
-                >
-                  <Trash2 className="h-4 w-4" />
-                  Supprimer
-                </Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>Supprimer {draft.name} ?</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    Cette action est irréversible. La machine sera retirée de la base
-                    de données.
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel disabled={deleting}>Annuler</AlertDialogCancel>
-                  <AlertDialogAction
-                    onClick={(e) => {
-                      e.preventDefault();
-                      void remove();
-                    }}
-                    disabled={deleting}
-                    className="bg-destructive text-white hover:bg-destructive/90"
-                  >
-                    {deleting ? "Suppression…" : "Supprimer définitivement"}
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive sm:w-auto"
+              disabled={saving || deleting}
+              onClick={() => setConfirmDelete(true)}
+            >
+              <Trash2 className="h-4 w-4" />
+              Supprimer
+            </Button>
           ) : (
             <span />
           )}
@@ -484,6 +461,32 @@ const remove = async () => {
         </DialogFooter>
       </DialogContent>
     </Dialog>
+
+    <AlertDialog open={confirmDelete} onOpenChange={setConfirmDelete}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Supprimer {draft.name} ?</AlertDialogTitle>
+          <AlertDialogDescription>
+            Cette action est irréversible. La machine sera retirée de la base de
+            données.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel disabled={deleting}>Annuler</AlertDialogCancel>
+          <AlertDialogAction
+            onClick={(e) => {
+              e.preventDefault();
+              void remove();
+            }}
+            disabled={deleting}
+            className="bg-destructive text-white hover:bg-destructive/90"
+          >
+            {deleting ? "Suppression…" : "Supprimer définitivement"}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+    </>
   );
 }
 
