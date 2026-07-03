@@ -1,17 +1,19 @@
 import {
+  Activity,
   AlertTriangle,
+  Calendar,
   CheckCircle2,
+  ExternalLink,
   Flag,
   Lightbulb,
   MapPin,
   Pencil,
   Wrench,
   XCircle,
-  Calendar,
-  Activity,
 } from "lucide-react";
 import type { EditMachineTab } from "@/components/EditMachineDialog";
 import type { Machine } from "@/lib/types";
+import { mpInstrumentHomeUrl } from "@/lib/labManager";
 import { machineKind } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -61,6 +63,7 @@ export function MachineCard({
 }) {
   const kind = machineKind(machine);
   const s = statusMap[machine.status];
+  const liveUrl = kind === "MP" ? mpInstrumentHomeUrl(machine.name) : null;
 
   const flagsP = pendingCount(machine.flags);
   const improvP = pendingCount(machine.improvements);
@@ -119,6 +122,19 @@ export function MachineCard({
             </span>
 
             <span>SW {machine.sw}</span>
+
+            {liveUrl && (
+              <a
+                href={liveUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={(e) => e.stopPropagation()}
+                className="inline-flex items-center gap-1 font-medium text-mp transition hover:text-mp/80 hover:underline"
+              >
+                <ExternalLink className="h-3 w-3" />
+                Voir en direct
+              </a>
+            )}
           </div>
         </div>
 

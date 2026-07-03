@@ -3,6 +3,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Activity,
+  ExternalLink,
   Loader2,
   Moon,
   Plus,
@@ -29,6 +30,7 @@ import {
 import type { Machine } from "@/lib/types";
 import { machineKind } from "@/lib/types";
 import { useTheme } from "@/lib/theme";
+import { FALCON_MP_LAB_DASHBOARD_URL } from "@/lib/labManager";
 import { afterUiSettled } from "@/lib/ui";
 import { toast } from "sonner";
 
@@ -290,6 +292,26 @@ function HomePage() {
           </div>
 
           <div className="flex items-center gap-2">
+            <Button variant="outline" size="icon" asChild className="sm:hidden">
+              <a
+                href={FALCON_MP_LAB_DASHBOARD_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                title="FalconMP Lab Dashboard"
+              >
+                <ExternalLink className="h-4 w-4" />
+              </a>
+            </Button>
+            <Button variant="outline" asChild className="hidden sm:inline-flex">
+              <a
+                href={FALCON_MP_LAB_DASHBOARD_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                <ExternalLink className="h-4 w-4" />
+                FalconMP Lab Dashboard
+              </a>
+            </Button>
             {!API_CONFIGURED && (
               <span className="hidden rounded-md border border-warning/40 bg-warning/10 px-2 py-1 text-[11px] font-medium text-warning sm:inline">
                 Mode démo — VITE_API_URL non défini
