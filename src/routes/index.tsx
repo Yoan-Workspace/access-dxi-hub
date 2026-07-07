@@ -266,7 +266,7 @@ function HomePage() {
   return (
     <div className="min-h-screen bg-background">
       <header className="sticky top-0 z-20 border-b bg-background/80 backdrop-blur">
-        <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-6 py-4">
+        <div className="flex w-full items-center justify-between gap-4 px-3 py-4 sm:px-4 lg:px-5">
           <div className="flex items-center gap-3">
             <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-primary-foreground">
               <Activity className="h-5 w-5" />
@@ -336,7 +336,7 @@ function HomePage() {
         </div>
       </header>
 
-      <main className="mx-auto max-w-7xl px-6 py-8">
+      <main className="w-full px-3 py-6 sm:px-4 lg:px-5">
         <MachineFilters
           filters={filters}
           stats={stats}
@@ -370,7 +370,7 @@ function HomePage() {
               Aucune machine ne correspond aux critères sélectionnés.
             </div>
           ) : (
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
               {filtered.map((m) => (
                 <MachineCard key={m.id} machine={m} onEdit={(tab) => openEdit(m, tab)} />
               ))}
