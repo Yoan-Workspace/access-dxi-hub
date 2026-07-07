@@ -89,7 +89,12 @@ function maintenanceDue(machine: Machine, kind: ReturnType<typeof machineKind>) 
     return true;
   }
 
-  if (machine.asdStatus !== "valid") return true;
+  if (
+    machine.asdStatus !== "valid" &&
+    machine.asdStatus !== "fail_precision"
+  ) {
+    return true;
+  }
 
   const dueDate = getNextPmDate(machine);
   const now = new Date();
