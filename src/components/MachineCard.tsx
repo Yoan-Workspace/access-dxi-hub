@@ -38,8 +38,12 @@ const statusMap: Record<
   },
 };
 
-function pendingCount(items: { completed: boolean }[]) {
-  return items.filter((i) => !i.completed).length;
+function pendingCount(items: { completed: boolean }[] | undefined) {
+  return (items ?? []).filter((i) => !i.completed).length;
+}
+
+function doneCount(items: { completed: boolean }[] | undefined) {
+  return (items ?? []).filter((i) => i.completed).length;
 }
 
 function fmtDate(iso: string) {
@@ -65,10 +69,14 @@ export function MachineCard({
   const s = statusMap[machine.status];
   const liveUrl = kind === "MP" ? mpInstrumentHomeUrl(machine.name) : null;
 
-  const flagsP = pendingCount(machine.flags);
-  const improvP = pendingCount(machine.improvements);
-  const probsP = pendingCount(machine.problems);
-  const repairsP = pendingCount(machine.repairs);
+  const flagsInProgress = pendingCount(machine.flags);
+  const flagsDone = doneCount(machine.flags);
+  const improvInProgress = pendingCount(machine.improvements);
+  const improvDone = doneCount(machine.improvements);
+  const probsInProgress = pendingCount(machine.problems);
+  const probsDone = doneCount(machine.problems);
+  const repairsInProgress = pendingCount(machine.repairs);
+  const repairsDone = doneCount(machine.repairs);
 
   return (
     <div
@@ -188,8 +196,8 @@ export function MachineCard({
       <div className="grid grid-cols-4 gap-1.5">
         <Counter
           icon={<Flag className="h-3.5 w-3.5 shrink-0" />}
-          pending={flagsP}
-          total={machine.flags.length}
+          inProgress={flagsInProgress}
+          done={flagsDone}
           label="Flags"
           tone="warning"
           onClick={() => onEdit("flags")}
@@ -197,8 +205,8 @@ export function MachineCard({
 
         <Counter
           icon={<XCircle className="h-3.5 w-3.5 shrink-0" />}
-          pending={probsP}
-          total={machine.problems.length}
+          inProgress={probsInProgress}
+          done={probsDone}
           label="Probl."
           tone="danger"
           onClick={() => onEdit("problems")}
@@ -206,8 +214,8 @@ export function MachineCard({
 
         <Counter
           icon={<AlertTriangle className="h-3.5 w-3.5 shrink-0" />}
-          pending={repairsP}
-          total={machine.repairs.length}
+          inProgress={repairsInProgress}
+          done={repairsDone}
           label="Répar."
           tone="warning"
           onClick={() => onEdit("repairs")}
@@ -215,10 +223,10 @@ export function MachineCard({
 
         <Counter
           icon={<Lightbulb className="h-3.5 w-3.5 shrink-0" />}
-          value={improvP}
+          inProgress={improvInProgress}
+          done={improvDone}
           label="Improv."
           tone="improve"
-          activeOnly
           onClick={() => onEdit("improvements")}
         />
       </div>
@@ -258,41 +266,44 @@ function Badge({
 
 function Counter({
   icon,
-  pending,
-  total,
-  value,
+  inProgress,
+  done,
   label,
   tone,
-  activeOnly = false,
   onClick,
 }: {
   icon: React.ReactNode;
-  pending?: number;
-  total?: number;
-  value?: number;
+  inProgress: number;
+  done: number;
   label: string;
   tone: "danger" | "warning" | "improve";
-  activeOnly?: boolean;
   onClick: () => void;
 }) {
-  const count = activeOnly ? (value ?? 0) : (pending ?? 0);
-  const active = count > 0;
+  const active = inProgress > 0;
 
   const toneCls = active
     ? {
-        danger: "text-danger border-danger/30 hover:bg-danger/10",
-        warning: "text-warning border-warning/30 hover:bg-warning/10",
-        improve: "text-improve border-improve/30 hover:bg-improve/10",
+        danger: "border-danger/30 hover:bg-danger/10",
+        warning: "border-warning/30 hover:bg-warning/10",
+        improve: "border-improve/30 hover:bg-improve/10",
       }[tone]
-    : "text-muted-foreground border-border hover:border-primary/30 hover:bg-secondary/80";
+    : "border-border hover:border-primary/30 hover:bg-secondary/80";
 
-  const numberCls = active
+  const inProgressCls = active
     ? {
         danger: "text-danger",
         warning: "text-warning",
         improve: "text-improve",
       }[tone]
     : "text-foreground";
+
+  const labelCls = active
+    ? {
+        danger: "text-danger",
+        warning: "text-warning",
+        improve: "text-improve",
+      }[tone]
+    : "text-muted-foreground";
 
   return (
     <button
@@ -302,30 +313,28 @@ function Counter({
         onClick();
       }}
       className={cn(
-        "flex min-h-[3.75rem] w-full flex-col items-center justify-center gap-0.5 rounded-lg border bg-background/50 px-1.5 py-2 text-center transition",
+        "flex min-h-[4.25rem] w-full flex-col items-stretch justify-center gap-1 rounded-lg border bg-background/50 px-1.5 py-2 text-center transition",
         "hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40",
         toneCls,
       )}
     >
-      <div className="flex items-center justify-center gap-1 text-[10px] font-medium leading-none">
+      <div
+        className={cn(
+          "flex items-center justify-center gap-1 text-[10px] font-medium leading-none",
+          labelCls,
+        )}
+      >
         {icon}
         <span className="truncate">{label}</span>
       </div>
 
-      <div className="text-sm font-semibold tabular-nums leading-none">
-        {activeOnly ? (
-          <span className={cn(active ? numberCls : "text-muted-foreground")}>
-            {count}
-            {count > 0 && (
-              <span className="ml-0.5 text-[9px] font-normal opacity-75">act.</span>
-            )}
-          </span>
-        ) : (
-          <>
-            <span className={cn(active ? numberCls : "text-foreground")}>{count}</span>
-            <span className="text-xs font-medium text-muted-foreground">/{total ?? 0}</span>
-          </>
-        )}
+      <div className="space-y-0.5 text-[10px] leading-tight tabular-nums">
+        <div className={cn("font-semibold", inProgressCls)}>
+          {inProgress} en cours
+        </div>
+        <div className="font-medium text-muted-foreground">
+          {done} terminé{done > 1 ? "s" : ""}
+        </div>
       </div>
     </button>
   );
