@@ -58,6 +58,11 @@ function fmtDate(iso: string) {
   }
 }
 
+const monthNames = [
+  "Janvier", "Février", "Mars", "Avril", "Mai", "Juin",
+  "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre",
+];
+
 const monthMap: Record<string, number> = {
   Janvier: 0,
   Février: 1,
@@ -73,15 +78,33 @@ const monthMap: Record<string, number> = {
   Décembre: 11,
 };
 
-function getNextPmDate(machine: Machine) {
+function getNextPm(machine: Machine) {
   const lastPmDate = new Date(
     machine.pmRef.year,
     monthMap[machine.pmRef.month],
     1,
   );
-  const nextPmDate = new Date(lastPmDate);
-  nextPmDate.setMonth(nextPmDate.getMonth() + 6);
-  return nextPmDate;
+  const dueDate = new Date(lastPmDate);
+  dueDate.setMonth(dueDate.getMonth() + 6);
+
+  return {
+    dueDate,
+    nextType: machine.pmRef.period === 6 ? 12 : 6,
+  };
+}
+
+function pmDueThisMonthLabel(machine: Machine): string | null {
+  const { dueDate, nextType } = getNextPm(machine);
+  const now = new Date();
+
+  if (
+    dueDate.getMonth() !== now.getMonth() ||
+    dueDate.getFullYear() !== now.getFullYear()
+  ) {
+    return null;
+  }
+
+  return `PM ${nextType} · ${monthNames[dueDate.getMonth()]}`;
 }
 
 function maintenanceDue(machine: Machine, kind: ReturnType<typeof machineKind>) {
@@ -96,7 +119,7 @@ function maintenanceDue(machine: Machine, kind: ReturnType<typeof machineKind>) 
     return true;
   }
 
-  const dueDate = getNextPmDate(machine);
+  const { dueDate } = getNextPm(machine);
   const now = new Date();
   const currentMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
@@ -139,6 +162,7 @@ export function MachineCard({
   const repairsInProgress = pendingCount(machine.repairs);
   const repairsDone = doneCount(machine.repairs);
   const topBarClass = cardTopBarClass(machine, kind, probsInProgress);
+  const pmThisMonth = pmDueThisMonthLabel(machine);
 
   return (
     <div
@@ -160,7 +184,7 @@ export function MachineCard({
 
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <span
               className={cn(
                 "inline-flex h-5 items-center rounded-full px-2 text-[10px] font-semibold tracking-wider uppercase",
@@ -174,6 +198,13 @@ export function MachineCard({
               <span className={cn("h-1.5 w-1.5 rounded-full", s.ring)} />
               {s.label}
             </span>
+
+            {pmThisMonth && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-warning/15 px-2 py-0.5 text-[10px] font-semibold text-warning">
+                <Calendar className="h-3 w-3" />
+                {pmThisMonth}
+              </span>
+            )}
           </div>
 
           <h3 className="mt-1.5 truncate text-lg font-semibold tracking-tight">
