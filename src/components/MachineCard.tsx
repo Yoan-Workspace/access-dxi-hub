@@ -58,6 +58,62 @@ function fmtDate(iso: string) {
   }
 }
 
+const monthMap: Record<string, number> = {
+  Janvier: 0,
+  Février: 1,
+  Mars: 2,
+  Avril: 3,
+  Mai: 4,
+  Juin: 5,
+  Juillet: 6,
+  Août: 7,
+  Septembre: 8,
+  Octobre: 9,
+  Novembre: 10,
+  Décembre: 11,
+};
+
+function getNextPmDate(machine: Machine) {
+  const lastPmDate = new Date(
+    machine.pmRef.year,
+    monthMap[machine.pmRef.month],
+    1,
+  );
+  const nextPmDate = new Date(lastPmDate);
+  nextPmDate.setMonth(nextPmDate.getMonth() + 6);
+  return nextPmDate;
+}
+
+function maintenanceDue(machine: Machine, kind: ReturnType<typeof machineKind>) {
+  if (kind === "MP" && (machine.monthlyMaint ?? "not_done") === "not_done") {
+    return true;
+  }
+
+  if (machine.asdStatus !== "valid") return true;
+
+  const dueDate = getNextPmDate(machine);
+  const now = new Date();
+  const currentMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+
+  if (dueDate < currentMonth) return true;
+
+  return (
+    dueDate.getMonth() === now.getMonth() &&
+    dueDate.getFullYear() === now.getFullYear()
+  );
+}
+
+function cardTopBarClass(
+  machine: Machine,
+  kind: ReturnType<typeof machineKind>,
+  activeProblems: number,
+) {
+  if (activeProblems > 0 || machine.status === "danger") return "bg-danger";
+  if (machine.status === "maintenance") return "bg-maintenance";
+  if (maintenanceDue(machine, kind)) return "bg-warning";
+  return "bg-success";
+}
+
 export function MachineCard({
   machine,
   onEdit,
@@ -77,6 +133,7 @@ export function MachineCard({
   const probsDone = doneCount(machine.problems);
   const repairsInProgress = pendingCount(machine.repairs);
   const repairsDone = doneCount(machine.repairs);
+  const topBarClass = cardTopBarClass(machine, kind, probsInProgress);
 
   return (
     <div
@@ -92,7 +149,7 @@ export function MachineCard({
       <span
         className={cn(
           "absolute left-5 right-5 top-0 h-[3px] rounded-b-full",
-          kind === "MP" ? "bg-mp" : "bg-access",
+          topBarClass,
         )}
       />
 
