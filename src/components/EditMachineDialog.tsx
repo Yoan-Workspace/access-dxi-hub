@@ -101,15 +101,18 @@ export function EditMachineDialog({
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [lastDateEdited, setLastDateEdited] = useState(false);
 
   useEffect(() => {
     if (open && machine) {
       setDraft(structuredClone(machine));
       setTab(initialTab);
       setConfirmDelete(false);
+      setLastDateEdited(false);
     } else if (!machine) {
       setDraft(null);
       setConfirmDelete(false);
+      setLastDateEdited(false);
     }
   }, [machine, open, initialTab]);
 
@@ -126,10 +129,16 @@ export function EditMachineDialog({
 const save = async () => {
   if (!draft) return;
 
+  // La date de dernière intervention est mise à jour automatiquement à
+  // l'enregistrement, sauf si elle a été renseignée manuellement.
+  const payload = lastDateEdited
+    ? draft
+    : { ...draft, lastDate: new Date().toISOString().slice(0, 19) };
+
   setSaving(true);
 
   try {
-    await onSave(draft);
+    await onSave(payload);
   } finally {
     setSaving(false);
   }
@@ -192,10 +201,16 @@ const remove = async () => {
                   <Input
                     type="datetime-local"
                     value={toLocalInput(draft.lastDate)}
-                    onChange={(e) =>
-                      set("lastDate", new Date(e.target.value).toISOString().slice(0, 19))
-                    }
+                    onChange={(e) => {
+                      setLastDateEdited(true);
+                      set("lastDate", new Date(e.target.value).toISOString().slice(0, 19));
+                    }}
                   />
+                  <p className="text-[11px] text-muted-foreground">
+                    {lastDateEdited
+                      ? "Date renseignée manuellement."
+                      : "Mise à jour automatiquement à l'enregistrement."}
+                  </p>
                 </Field>
 
                 <Field label="Status">
