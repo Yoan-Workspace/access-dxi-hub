@@ -8,6 +8,7 @@ import {
   Lightbulb,
   MapPin,
   Pencil,
+  Ticket,
   Wrench,
   XCircle,
 } from "lucide-react";
@@ -144,9 +145,13 @@ function cardTopBarClass(
 
 export function MachineCard({
   machine,
+  ticketsOpen = 0,
+  ticketsClosed = 0,
   onEdit,
 }: {
   machine: Machine;
+  ticketsOpen?: number;
+  ticketsClosed?: number;
   onEdit: (tab?: EditMachineTab) => void;
 }) {
   const kind = machineKind(machine);
@@ -323,6 +328,35 @@ export function MachineCard({
           onClick={() => onEdit("improvements")}
         />
       </div>
+
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          onEdit("tickets");
+        }}
+        className={cn(
+          "flex w-full items-center justify-between rounded-lg border bg-background/50 px-3 py-2 text-left transition",
+          "hover:border-primary/30 hover:bg-secondary/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40",
+          ticketsOpen > 0
+            ? "border-warning/30 text-warning"
+            : "border-border text-muted-foreground",
+        )}
+      >
+        <span className="flex items-center gap-1.5 text-[10px] font-medium">
+          <Ticket className="h-3.5 w-3.5 shrink-0" />
+          Tickets
+        </span>
+        <span className="text-xs font-semibold tabular-nums">
+          <span className={ticketsOpen > 0 ? "text-warning" : "text-foreground"}>
+            {ticketsOpen} ouvert{ticketsOpen > 1 ? "s" : ""}
+          </span>
+          <span className="mx-1 text-muted-foreground">·</span>
+          <span className="text-muted-foreground">
+            {ticketsClosed} fermé{ticketsClosed > 1 ? "s" : ""}
+          </span>
+        </span>
+      </button>
     </div>
   );
 }

@@ -1,0 +1,1015 @@
+{
+  "machines": [
+    {
+      "id": 1,
+      "name": "MP11",
+      "lastDate": "2026-06-04T16:08:16",
+      "flags": [],
+      "pmRef": {
+        "period": 12,
+        "month": "Janvier",
+        "year": 2026
+      },
+      "sw": "1.20.0.22",
+      "status": "danger",
+      "adam": "fonctionnelle",
+      "improvements": [
+        {
+          "text": "WASH TOWER 1",
+          "completed": true,
+          "completedDate": "04/06/2026"
+        }
+      ],
+      "problems": [
+        {
+          "text": "PELLETIER X4",
+          "completed": false
+        }
+      ],
+      "repairs": [],
+      "localisation": "Thermal",
+      "asdStatus": "pending",
+      "monthlyMaint": "not_done"
+    },
+    {
+      "id": 2,
+      "name": "MP12",
+      "lastDate": "2026-06-10T10:30:12",
+      "flags": [],
+      "pmRef": {
+        "period": 6,
+        "month": "Février",
+        "year": 2026
+      },
+      "sw": "1.20.0.22",
+      "status": "ok",
+      "adam": "fonctionnelle",
+      "improvements": [
+        {
+          "text": "NETTOYER MANDREL",
+          "completed": true,
+          "completedDate": "27/04/2026"
+        },
+        {
+          "text": "ECRAN TACHTILE",
+          "completed": true,
+          "completedDate": "10/06/2026"
+        }
+      ],
+      "problems": [],
+      "repairs": [],
+      "localisation": "BSL2",
+      "pmHistory": [],
+      "asdStatus": "valid",
+      "monthlyMaint": "done"
+    },
+    {
+      "id": 3,
+      "name": "MP16",
+      "lastDate": "2026-05-28T11:31:44",
+      "flags": [
+        {
+          "text": "WWS",
+          "completed": false
+        }
+      ],
+      "pmRef": {
+        "period": 6,
+        "month": "Mars",
+        "year": 2026
+      },
+      "sw": "1.20.0.22",
+      "status": "ok",
+      "adam": "fonctionnelle",
+      "improvements": [
+        {
+          "text": "TIPS GRIPPER",
+          "completed": false
+        },
+        {
+          "text": "PELLETIER ZONZ 1",
+          "completed": false
+        }
+      ],
+      "problems": [
+        {
+          "text": "MAIN DISTRIBUTION BOARD",
+          "completed": true,
+          "completedDate": "21/05/2026"
+        }
+      ],
+      "repairs": [
+        {
+          "text": "RSM gripper défectueux",
+          "completed": true,
+          "completedDate": "30/04/2026"
+        },
+        {
+          "text": "ASD TEST SAMPLE PIPETTER",
+          "completed": true,
+          "completedDate": "11/05/2026"
+        }
+      ],
+      "localisation": "BSL2",
+      "asdStatus": "fail_precision",
+      "pmHistory": [],
+      "monthlyMaint": "not_done"
+    },
+    {
+      "id": 4,
+      "name": "MP31",
+      "lastDate": "2026-06-11T09:49:34",
+      "flags": [],
+      "pmRef": {
+        "period": 6,
+        "month": "Janvier",
+        "year": 2026
+      },
+      "sw": "1.20.0.22",
+      "status": "maintenance",
+      "adam": "fonctionnelle",
+      "improvements": [
+        {
+          "text": "REAGENT STORAGE",
+          "completed": false
+        }
+      ],
+      "problems": [],
+      "repairs": [],
+      "localisation": "BSL2",
+      "asdStatus": "fail_precision",
+      "monthlyMaint": "not_done",
+      "pmHistory": []
+    },
+    {
+      "id": 5,
+      "name": "MP34",
+      "lastDate": "2026-05-26T17:36:53",
+      "flags": [],
+      "pmRef": {
+        "period": 12,
+        "month": "Mars",
+        "year": 2026
+      },
+      "sw": "1.20.0.22",
+      "status": "ok",
+      "adam": "fonctionnelle",
+      "improvements": [],
+      "problems": [],
+      "repairs": [],
+      "localisation": "BSL2",
+      "asdStatus": "valid",
+      "monthlyMaint": "not_done"
+    },
+    {
+      "id": 6,
+      "name": "MP38",
+      "lastDate": "2026-06-05T11:27:27",
+      "flags": [],
+      "pmRef": {
+        "period": 6,
+        "month": "Avril",
+        "year": 2026
+      },
+      "sw": "1.20.0.22",
+      "status": "ok",
+      "adam": "fonctionnelle",
+      "improvements": [
+        {
+          "text": "Calibrer fluid QS",
+          "completed": true,
+          "completedDate": "03/06/2026"
+        }
+      ],
+      "problems": [],
+      "repairs": [
+        {
+          "text": "Investigation High RLU",
+          "completed": true,
+          "completedDate": "06/05/2026"
+        }
+      ],
+      "localisation": "BSL2",
+      "asdStatus": "valid",
+      "monthlyMaint": "done"
+    },
+    {
+      "id": 7,
+      "name": "MP40",
+      "lastDate": "2026-06-02T12:41:30",
+      "flags": [
+        {
+          "text": "TRP, P4",
+          "completed": false
+        }
+      ],
+      "pmRef": {
+        "period": 12,
+        "month": "Juin",
+        "year": 2026
+      },
+      "sw": "1.20.0.22",
+      "status": "ok",
+      "adam": "fonctionnelle",
+      "improvements": [],
+      "problems": [],
+      "repairs": [],
+      "localisation": "BSL2",
+      "pmHistory": [
+        {
+          "oldValue": "6 Novembre 2025",
+          "newValue": "6 Décembre 2025",
+          "date": "18/05/2026 15:57:07"
+        }
+      ],
+      "asdStatus": "valid",
+      "monthlyMaint": "done"
+    },
+    {
+      "id": 8,
+      "name": "MP60",
+      "lastDate": "2026-05-26T17:37:12",
+      "flags": [],
+      "pmRef": {
+        "period": 6,
+        "month": "Mars",
+        "year": 2026
+      },
+      "sw": "1.20.0.22",
+      "status": "ok",
+      "adam": "fonctionnelle",
+      "improvements": [],
+      "problems": [],
+      "repairs": [],
+      "localisation": "BSL2",
+      "asdStatus": "fail_precision",
+      "monthlyMaint": "not_done"
+    },
+    {
+      "id": 9,
+      "name": "MP80",
+      "lastDate": "2026-05-26T17:37:16",
+      "flags": [],
+      "pmRef": {
+        "period": 6,
+        "month": "Mai",
+        "year": 2026
+      },
+      "sw": "1.20.0.22",
+      "status": "ok",
+      "adam": "fonctionnelle",
+      "improvements": [],
+      "problems": [],
+      "repairs": [],
+      "localisation": "BSL2",
+      "asdStatus": "valid",
+      "pmHistory": [],
+      "monthlyMaint": "not_done"
+    },
+    {
+      "id": 10,
+      "name": "MP86",
+      "lastDate": "2026-05-26T17:37:27",
+      "flags": [
+        {
+          "text": "PVDR, PVSR",
+          "completed": false
+        }
+      ],
+      "pmRef": {
+        "period": 6,
+        "month": "Mars",
+        "year": 2026
+      },
+      "sw": "1.20.0.22",
+      "status": "ok",
+      "adam": "fonctionnelle",
+      "improvements": [
+        {
+          "text": "NETTOYER MANDREL",
+          "completed": false
+        }
+      ],
+      "problems": [],
+      "repairs": [
+        {
+          "text": "Prise elec HS",
+          "completed": true,
+          "completedDate": "19/05/2026"
+        }
+      ],
+      "localisation": "BSL2",
+      "asdStatus": "pending",
+      "pmHistory": [],
+      "monthlyMaint": "not_done"
+    },
+    {
+      "id": 11,
+      "name": "MP89",
+      "lastDate": "2026-06-03T10:04:31",
+      "flags": [],
+      "pmRef": {
+        "period": 12,
+        "month": "Mai",
+        "year": 2026
+      },
+      "sw": "1.20.0.22",
+      "status": "ok",
+      "adam": "fonctionnelle",
+      "improvements": [
+        {
+          "text": "SPIN MIX",
+          "completed": false
+        },
+        {
+          "text": "RP2 Alignments Check",
+          "completed": false
+        }
+      ],
+      "problems": [],
+      "repairs": [
+        {
+          "text": "Luminometre high voltage",
+          "completed": true,
+          "completedDate": "29/04/2026"
+        },
+        {
+          "text": "Prise elec HS.",
+          "completed": true,
+          "completedDate": "19/05/2026"
+        }
+      ],
+      "localisation": "BSL2",
+      "asdStatus": "fail_precision",
+      "pmHistory": [],
+      "monthlyMaint": "not_done"
+    },
+    {
+      "id": 12,
+      "name": "Access2 #511531",
+      "lastDate": "2026-06-12T12:14:24",
+      "flags": [],
+      "pmRef": {
+        "period": 12,
+        "month": "Avril",
+        "year": 2026
+      },
+      "sw": "4.1.0",
+      "status": "ok",
+      "adam": "non_fonctionnelle",
+      "improvements": [
+        {
+          "text": "DARK COUNT",
+          "completed": false
+        },
+        {
+          "text": "MANQUE CACHE NOIR",
+          "completed": true,
+          "completedDate": "12/06/2026"
+        },
+        {
+          "text": "ENROBER SONDE TEMPERATURE",
+          "completed": false
+        }
+      ],
+      "problems": [],
+      "repairs": [],
+      "localisation": "Thermal",
+      "asdStatus": "valid",
+      "asdLabel": "System Check",
+      "pmHistory": [],
+      "monthlyMaint": "not_done"
+    },
+    {
+      "id": 13,
+      "name": "Access2 #511128",
+      "lastDate": "2026-06-02T16:58:23",
+      "flags": [],
+      "pmRef": {
+        "period": 6,
+        "month": "Janvier",
+        "year": 2026
+      },
+      "sw": "4.1.0",
+      "status": "ok",
+      "adam": "fonctionnelle",
+      "improvements": [
+        {
+          "text": "Ventilo HS capot à droite",
+          "completed": false
+        }
+      ],
+      "problems": [],
+      "repairs": [
+        {
+          "text": "System Check FAIL",
+          "completed": true,
+          "completedDate": "01/06/2026"
+        }
+      ],
+      "localisation": "BSL2",
+      "asdStatus": "valid",
+      "asdLabel": "System Check",
+      "pmHistory": [],
+      "monthlyMaint": "not_done"
+    },
+    {
+      "id": 14,
+      "name": "Access2 #501281",
+      "lastDate": "2026-05-27T10:44:20",
+      "flags": [],
+      "pmRef": {
+        "period": 6,
+        "month": "Mai",
+        "year": 2026
+      },
+      "sw": "4.1.0",
+      "status": "ok",
+      "adam": "fonctionnelle",
+      "improvements": [
+        {
+          "text": "LumWashSon FAIL",
+          "completed": false
+        }
+      ],
+      "problems": [],
+      "repairs": [],
+      "localisation": "BSL2",
+      "asdStatus": "valid",
+      "asdLabel": "System Check",
+      "monthlyMaint": "not_done",
+      "pmHistory": []
+    },
+    {
+      "id": 15,
+      "name": "Access2 #510386",
+      "lastDate": "2026-06-12T12:13:25",
+      "flags": [],
+      "pmRef": {
+        "period": 6,
+        "month": "Juin",
+        "year": 2026
+      },
+      "sw": "4.1.0",
+      "status": "ok",
+      "adam": "fonctionnelle",
+      "improvements": [],
+      "problems": [],
+      "repairs": [],
+      "localisation": "BSL2",
+      "asdStatus": "valid",
+      "asdLabel": "System Check",
+      "monthlyMaint": "not_done",
+      "pmHistory": []
+    },
+    {
+      "id": 16,
+      "name": "Access2 #501278",
+      "lastDate": "2026-06-01T17:42:03",
+      "flags": [],
+      "pmRef": {
+        "period": 12,
+        "month": "Mars",
+        "year": 2026
+      },
+      "sw": "4.1.0",
+      "status": "ok",
+      "adam": "fonctionnelle",
+      "improvements": [
+        {
+          "text": "DATABASE Consistency",
+          "completed": true,
+          "completedDate": "22/05/2026"
+        },
+        {
+          "text": "Imprimante",
+          "completed": true
+        }
+      ],
+      "problems": [],
+      "repairs": [
+        {
+          "text": "DATABASE RESET",
+          "completed": true,
+          "completedDate": "22/05/2026"
+        },
+        {
+          "text": "SYSTEM CHECK FAIL",
+          "completed": true,
+          "completedDate": "27/05/2026"
+        }
+      ],
+      "localisation": "BSL2",
+      "asdStatus": "valid",
+      "asdLabel": "System Check",
+      "pmHistory": [],
+      "monthlyMaint": "not_done"
+    }
+  ],
+  "tickets": [],
+  "users": [],
+  "history": [
+    {
+      "date": "12/06/2026 12:14:24",
+      "machine": "Access2 #511531",
+      "change": "IMPROVEMENT: DARK COUNT, MANQUE CACHE NOIR, ENROBER SONDE TEMPERATURE -> DARK COUNT, ENROBER SONDE TEMPERATURE, Last Update: 26/05/2026 17:37 -> 12/06/2026 12:14"
+    },
+    {
+      "date": "12/06/2026 12:13:25",
+      "machine": "Access2 #510386",
+      "change": "Status: maintenance → ok, Date: 08/06/2026 10:15 → 12/06/2026 12:13, PM: 12 mois Décembre 2025 → 6 mois Juin 2026"
+    },
+    {
+      "date": "11/06/2026 09:49:34",
+      "machine": "MP31",
+      "change": "Status: ok → maintenance, Date: 02/06/2026 10:41 → 11/06/2026 09:49"
+    },
+    {
+      "date": "10/06/2026 10:30:12",
+      "machine": "MP12",
+      "change": "IMPROVEMENT: ECRAN TACHTILE -> -, Last Update: 09/06/2026 15:59 -> 10/06/2026 10:30"
+    },
+    {
+      "date": "09/06/2026 15:59:38",
+      "machine": "MP12",
+      "change": "IMPROVEMENT: - -> ECRAN TACHTILE, Last Update: 03/06/2026 16:55 -> 09/06/2026 15:59"
+    },
+    {
+      "date": "08/06/2026 10:15:21",
+      "machine": "Access2 #510386",
+      "change": "Status: ok → maintenance, Date: 26/05/2026 17:37 → 08/06/2026 10:15"
+    },
+    {
+      "date": "05/06/2026 11:27:27",
+      "machine": "MP38",
+      "change": "MENSUEL MAINT.: Non faite -> Faite, Date: 03/06/2026 15:43 -> 05/06/2026 11:27"
+    },
+    {
+      "date": "04/06/2026 16:08:16",
+      "machine": "MP11",
+      "change": "IMPROVEMENT: WASH TOWER 1 -> -, Last Update: 26/05/2026 17:36 -> 04/06/2026 16:08"
+    },
+    {
+      "date": "03/06/2026 16:55:18",
+      "machine": "MP12",
+      "change": "MENSUEL MAINT.: Non faite -> Faite, Date: 26/05/2026 17:36 -> 03/06/2026 16:55"
+    },
+    {
+      "date": "03/06/2026 15:43:57",
+      "machine": "MP38",
+      "change": "IMPROVEMENT: Calibrer fluid QS -> -, Last Update: 26/05/2026 17:36 -> 03/06/2026 15:43"
+    },
+    {
+      "date": "03/06/2026 10:04:31",
+      "machine": "MP89",
+      "change": "IMPROVEMENT: SPIN MIX -> SPIN MIX, RP2 Alignments Check, Last Update: 26/05/2026 17:37 -> 03/06/2026 10:04"
+    },
+    {
+      "date": "02/06/2026 16:58:23",
+      "machine": "Access2 #511128",
+      "change": "System Check: Non fonctionnelle -> Fonctionnelle, Date: 02/06/2026 15:49 -> 02/06/2026 16:58"
+    },
+    {
+      "date": "02/06/2026 15:49:34",
+      "machine": "Access2 #511128",
+      "change": "System Check: Fonctionnelle -> Non fonctionnelle, Date: 01/06/2026 10:42 -> 02/06/2026 15:49"
+    },
+    {
+      "date": "02/06/2026 12:41:30",
+      "machine": "MP40",
+      "change": "MENSUEL MAINT.: Non faite -> Faite, Date: 02/06/2026 12:41 -> 02/06/2026 12:41"
+    },
+    {
+      "date": "02/06/2026 12:41:05",
+      "machine": "MP40",
+      "change": "Status: maintenance → ok, Date: 02/06/2026 12:40 → 02/06/2026 12:41, PM: 6 mois Décembre 2025 → 12 mois Juin 2026"
+    },
+    {
+      "date": "02/06/2026 12:40:13",
+      "machine": "MP40",
+      "change": "ASD TESTS: Fonctionnelle -> Fonctionnelle, Date: 26/05/2026 17:37 -> 02/06/2026 12:40"
+    },
+    {
+      "date": "02/06/2026 10:41:12",
+      "machine": "MP31",
+      "change": "Date: 26/05/2026 17:36 → 02/06/2026 10:41"
+    },
+    {
+      "date": "01/06/2026 17:42:03",
+      "machine": "Access2 #501278",
+      "change": "System Check: Non fonctionnelle -> Fonctionnelle, Date: 01/06/2026 12:16 -> 01/06/2026 17:42"
+    },
+    {
+      "date": "01/06/2026 12:16:37",
+      "machine": "Access2 #501278",
+      "change": "System Check: Fonctionnelle -> Non fonctionnelle, Date: 27/05/2026 15:27 -> 01/06/2026 12:16"
+    },
+    {
+      "date": "01/06/2026 10:42:26",
+      "machine": "Access2 #511128",
+      "change": "System Check: Non fonctionnelle -> Fonctionnelle, Date: 01/06/2026 10:42 -> 01/06/2026 10:42"
+    },
+    {
+      "date": "01/06/2026 10:42:11",
+      "machine": "Access2 #511128",
+      "change": "Status: warning → ok, Date: 28/05/2026 13:14 → 01/06/2026 10:42"
+    },
+    {
+      "date": "01/06/2026 10:42:07",
+      "machine": "Access2 #511128",
+      "change": "Réparation résolu: \"System Check FAIL\", fin: 01/06/2026"
+    },
+    {
+      "date": "01/06/2026 09:10:55",
+      "machine": "Toutes",
+      "change": "Reset automatique MENSUEL MAINT. en Non faite (2026-06)"
+    },
+    {
+      "date": "28/05/2026 13:14:27",
+      "machine": "Access2 #511128",
+      "change": "IMPROVEMENT: - -> Ventilo HS capot à droite, Last Update: 26/05/2026 17:37 -> 28/05/2026 13:14"
+    },
+    {
+      "date": "28/05/2026 11:31:44",
+      "machine": "MP16",
+      "change": "MENSUEL MAINT.: Non faite -> Faite, Date: 28/05/2026 11:31 -> 28/05/2026 11:31"
+    },
+    {
+      "date": "28/05/2026 11:31:40",
+      "machine": "MP16",
+      "change": "MENSUEL MAINT.: Faite -> Non faite, Date: 26/05/2026 17:36 -> 28/05/2026 11:31"
+    },
+    {
+      "date": "27/05/2026 15:27:47",
+      "machine": "Access2 #501278",
+      "change": "ADAM: non_fonctionnelle → fonctionnelle, Date: 27/05/2026 13:55 → 27/05/2026 15:27"
+    },
+    {
+      "date": "27/05/2026 13:55:05",
+      "machine": "Access2 #501278",
+      "change": "ADAM: fonctionnelle → non_fonctionnelle, Date: 27/05/2026 09:45 → 27/05/2026 13:55"
+    },
+    {
+      "date": "27/05/2026 10:44:20",
+      "machine": "Access2 #501281",
+      "change": "Date: 26/05/2026 17:37 → 27/05/2026 10:44"
+    },
+    {
+      "date": "27/05/2026 09:45:02",
+      "machine": "Access2 #501278",
+      "change": "Date: 27/05/2026 09:44 → 27/05/2026 09:45"
+    },
+    {
+      "date": "27/05/2026 09:44:59",
+      "machine": "Access2 #501278",
+      "change": "Réparation résolu: \"SYSTEM CHECK FAIL\", fin: 27/05/2026"
+    },
+    {
+      "date": "27/05/2026 09:44:52",
+      "machine": "Access2 #501278",
+      "change": "System Check: Non fonctionnelle -> Fonctionnelle, Date: 27/05/2026 09:44 -> 27/05/2026 09:44"
+    },
+    {
+      "date": "27/05/2026 09:44:47",
+      "machine": "Access2 #501278",
+      "change": "Status: warning → ok, Date: 26/05/2026 17:37 → 27/05/2026 09:44"
+    },
+    {
+      "date": "26/05/2026 17:37:44",
+      "machine": "Access2 #501278",
+      "change": "MENSUEL MAINT.: Non faite -> Faite, Date: 26/05/2026 16:46 -> 26/05/2026 17:37"
+    },
+    {
+      "date": "26/05/2026 17:37:41",
+      "machine": "Access2 #510386",
+      "change": "MENSUEL MAINT.: Non faite -> Faite, Date: 05/05/2026 14:44 -> 26/05/2026 17:37"
+    },
+    {
+      "date": "26/05/2026 17:37:37",
+      "machine": "Access2 #501281",
+      "change": "MENSUEL MAINT.: Non faite -> Faite, Date: 06/05/2026 13:17 -> 26/05/2026 17:37"
+    },
+    {
+      "date": "26/05/2026 17:37:33",
+      "machine": "Access2 #511128",
+      "change": "MENSUEL MAINT.: Non faite -> Faite, Date: 26/05/2026 12:20 -> 26/05/2026 17:37"
+    },
+    {
+      "date": "26/05/2026 17:37:27",
+      "machine": "MP86",
+      "change": "MENSUEL MAINT.: Non faite -> Faite, Date: 19/05/2026 15:47 -> 26/05/2026 17:37"
+    },
+    {
+      "date": "26/05/2026 17:37:23",
+      "machine": "MP89",
+      "change": "MENSUEL MAINT.: Non faite -> Faite, Date: 22/05/2026 16:48 -> 26/05/2026 17:37"
+    },
+    {
+      "date": "26/05/2026 17:37:20",
+      "machine": "Access2 #511531",
+      "change": "MENSUEL MAINT.: Non faite -> Faite, Date: 11/05/2026 17:00 -> 26/05/2026 17:37"
+    },
+    {
+      "date": "26/05/2026 17:37:16",
+      "machine": "MP80",
+      "change": "MENSUEL MAINT.: Non faite -> Faite, Date: 21/05/2026 16:58 -> 26/05/2026 17:37"
+    },
+    {
+      "date": "26/05/2026 17:37:12",
+      "machine": "MP60",
+      "change": "MENSUEL MAINT.: Non faite -> Faite, Date: 19/05/2026 16:24 -> 26/05/2026 17:37"
+    },
+    {
+      "date": "26/05/2026 17:37:09",
+      "machine": "MP40",
+      "change": "MENSUEL MAINT.: Non faite -> Faite, Date: 26/05/2026 12:08 -> 26/05/2026 17:37"
+    },
+    {
+      "date": "26/05/2026 17:36:59",
+      "machine": "MP31",
+      "change": "MENSUEL MAINT.: Non faite -> Faite, Date: 19/05/2026 16:24 -> 26/05/2026 17:36"
+    },
+    {
+      "date": "26/05/2026 17:36:53",
+      "machine": "MP34",
+      "change": "MENSUEL MAINT.: Non faite -> Faite, Date: 06/05/2026 12:46 -> 26/05/2026 17:36"
+    },
+    {
+      "date": "26/05/2026 17:36:51",
+      "machine": "MP38",
+      "change": "MENSUEL MAINT.: Non faite -> Faite, Date: 06/05/2026 17:23 -> 26/05/2026 17:36"
+    },
+    {
+      "date": "26/05/2026 17:36:47",
+      "machine": "MP16",
+      "change": "MENSUEL MAINT.: Non faite -> Faite, Date: 21/05/2026 14:43 -> 26/05/2026 17:36"
+    },
+    {
+      "date": "26/05/2026 17:36:41",
+      "machine": "MP12",
+      "change": "MENSUEL MAINT.: Non faite -> Faite, Date: 27/04/2026 10:00 -> 26/05/2026 17:36"
+    },
+    {
+      "date": "26/05/2026 17:36:36",
+      "machine": "MP11",
+      "change": "MENSUEL MAINT.: Non faite -> Faite, Date: 27/04/2026 11:30 -> 26/05/2026 17:36"
+    },
+    {
+      "date": "26/05/2026 16:46:39",
+      "machine": "Access2 #501278",
+      "change": "Status: ok → warning, Date: 22/05/2026 15:35 → 26/05/2026 16:46"
+    },
+    {
+      "date": "26/05/2026 12:20:41",
+      "machine": "Access2 #511128",
+      "change": "Date: 26/05/2026 09:40 → 26/05/2026 12:20"
+    },
+    {
+      "date": "26/05/2026 12:08:21",
+      "machine": "MP40",
+      "change": "Status: ok → maintenance, Date: 18/05/2026 15:57 → 26/05/2026 12:08"
+    },
+    {
+      "date": "26/05/2026 09:40:47",
+      "machine": "Access2 #511128",
+      "change": "System Check: Fonctionnelle -> Non fonctionnelle, Date: 26/05/2026 09:40 -> 26/05/2026 09:40"
+    },
+    {
+      "date": "26/05/2026 09:40:42",
+      "machine": "Access2 #511128",
+      "change": "Status: ok → warning, Date: 27/04/2026 17:00 → 26/05/2026 09:40"
+    },
+    {
+      "date": "22/05/2026 16:48:24",
+      "machine": "MP89",
+      "change": "Status: maintenance → ok, Date: 21/05/2026 08:51 → 22/05/2026 16:48, PM: 6 mois Novembre 2025 → 12 mois Mai 2026"
+    },
+    {
+      "date": "22/05/2026 15:35:09",
+      "machine": "Access2 #501278",
+      "change": "Status: warning → ok, Date: 22/05/2026 11:08 → 22/05/2026 15:35"
+    },
+    {
+      "date": "22/05/2026 15:35:08",
+      "machine": "Access2 #501278",
+      "change": "Amélioration réalisée: \"DATABASE Consistency\""
+    },
+    {
+      "date": "22/05/2026 15:35:03",
+      "machine": "Access2 #501278",
+      "change": "Réparation résolu: \"DATABASE RESET\", fin: 22/05/2026"
+    },
+    {
+      "date": "22/05/2026 11:08:03",
+      "machine": "Access2 #501278",
+      "change": "IMPROVEMENT: DATABASE Consistency -> DATABASE Consistency, Last Update: 22/05/2026 11:07 -> 22/05/2026 11:08"
+    },
+    {
+      "date": "22/05/2026 11:07:58",
+      "machine": "Access2 #501278",
+      "change": "IMPROVEMENT: DATABASE Consistency, Imprimante -> DATABASE Consistency, Last Update: 22/05/2026 11:07 -> 22/05/2026 11:07"
+    },
+    {
+      "date": "22/05/2026 11:07:36",
+      "machine": "Access2 #501278",
+      "change": "System Check: Fonctionnelle -> Non fonctionnelle, Date: 22/05/2026 09:32 -> 22/05/2026 11:07"
+    },
+    {
+      "date": "22/05/2026 09:32:01",
+      "machine": "Access2 #501278",
+      "change": "Status: ok → warning, Date: 21/05/2026 11:31 → 22/05/2026 09:32"
+    },
+    {
+      "date": "21/05/2026 16:58:15",
+      "machine": "MP80",
+      "change": "Status: maintenance → ok, Date: 19/05/2026 17:21 → 21/05/2026 16:58, PM: 12 mois Novembre 2025 → 6 mois Mai 2026"
+    },
+    {
+      "date": "21/05/2026 14:43:25",
+      "machine": "MP16",
+      "change": "Status: warning → ok, Date: 20/05/2026 16:47 → 21/05/2026 14:43"
+    },
+    {
+      "date": "21/05/2026 14:43:18",
+      "machine": "MP16",
+      "change": "Problème résolu: \"MAIN DISTRIBUTION BOARD\", fin: 21/05/2026"
+    },
+    {
+      "date": "21/05/2026 11:31:40",
+      "machine": "Access2 #501278",
+      "change": "Date: 12/05/2026 11:26 → 21/05/2026 11:31"
+    },
+    {
+      "date": "21/05/2026 08:51:30",
+      "machine": "MP89",
+      "change": "Status: ok → maintenance, Date: 19/05/2026 16:52 → 21/05/2026 08:51"
+    },
+    {
+      "date": "20/05/2026 16:47:30",
+      "machine": "MP16",
+      "change": "Date: 20/05/2026 16:47 → 20/05/2026 16:47"
+    },
+    {
+      "date": "20/05/2026 16:47:20",
+      "machine": "MP16",
+      "change": "Date: 20/05/2026 16:11 → 20/05/2026 16:47"
+    },
+    {
+      "date": "20/05/2026 16:11:21",
+      "machine": "MP16",
+      "change": "Date: 20/05/2026 16:11 → 20/05/2026 16:11"
+    },
+    {
+      "date": "20/05/2026 16:11:02",
+      "machine": "MP16",
+      "change": "Date: 20/05/2026 16:09 → 20/05/2026 16:11"
+    },
+    {
+      "date": "20/05/2026 16:10:47",
+      "machine": "MP16",
+      "change": "Réparation résolue: \"SWAP MAIN DISTRIBUTION BOARD\""
+    },
+    {
+      "date": "20/05/2026 16:09:58",
+      "machine": "MP16",
+      "change": "Status: ok → warning, Date: 19/05/2026 16:24 → 20/05/2026 16:09"
+    },
+    {
+      "date": "19/05/2026 17:21:03",
+      "machine": "MP80",
+      "change": "Status: ok → maintenance, Date: 27/04/2026 12:00 → 19/05/2026 17:21"
+    },
+    {
+      "date": "19/05/2026 16:52:15",
+      "machine": "MP89",
+      "change": "ASD TESTS: Fail Precision sample pipetting -> Fail Precision sample pipetting, Date: 19/05/2026 16:50 -> 19/05/2026 16:52"
+    },
+    {
+      "date": "19/05/2026 16:50:33",
+      "machine": "MP89",
+      "change": "ASD TESTS: Fail Precision sample pipetting -> Fail Precision sample pipetting, Date: 19/05/2026 16:50 -> 19/05/2026 16:50"
+    },
+    {
+      "date": "19/05/2026 16:50:30",
+      "machine": "MP89",
+      "change": "ASD TESTS: En attente -> Fail Precision sample pipetting, Date: 19/05/2026 15:47 -> 19/05/2026 16:50"
+    },
+    {
+      "date": "19/05/2026 16:24:57",
+      "machine": "MP31",
+      "change": "ASD TESTS: En attente -> Fail Precision sample pipetting, Date: 19/05/2026 15:22 -> 19/05/2026 16:24"
+    },
+    {
+      "date": "19/05/2026 16:24:36",
+      "machine": "MP60",
+      "change": "ASD TESTS: En attente -> Fail Precision sample pipetting, Date: 06/05/2026 12:46 -> 19/05/2026 16:24"
+    },
+    {
+      "date": "19/05/2026 16:24:22",
+      "machine": "MP16",
+      "change": "ASD TESTS: Fail Precision sample pipetting -> Fail Precision sample pipetting, Date: 19/05/2026 16:24 -> 19/05/2026 16:24"
+    },
+    {
+      "date": "19/05/2026 16:24:15",
+      "machine": "MP16",
+      "change": "ASD TESTS: En attente -> Fail Precision sample pipetting, Date: 11/05/2026 09:20 -> 19/05/2026 16:24"
+    },
+    {
+      "date": "19/05/2026 15:47:49",
+      "machine": "MP86",
+      "change": "Status: warning → ok, Date: 19/05/2026 15:20 → 19/05/2026 15:47"
+    },
+    {
+      "date": "19/05/2026 15:47:47",
+      "machine": "MP86",
+      "change": "Réparation résolue: \"Prise elec HS\""
+    },
+    {
+      "date": "19/05/2026 15:47:47",
+      "machine": "MP86",
+      "change": "Réparation résolue: \"Prise elec HS\""
+    },
+    {
+      "date": "19/05/2026 15:47:47",
+      "machine": "MP86",
+      "change": "Réparation résolue: \"Prise elec HS\""
+    },
+    {
+      "date": "19/05/2026 15:47:47",
+      "machine": "MP86",
+      "change": "Réparation résolue: \"Prise elec HS\""
+    },
+    {
+      "date": "19/05/2026 15:47:46",
+      "machine": "MP86",
+      "change": "Réparation résolue: \"Prise elec HS\""
+    },
+    {
+      "date": "19/05/2026 15:47:46",
+      "machine": "MP86",
+      "change": "Réparation résolue: \"Prise elec HS\""
+    },
+    {
+      "date": "19/05/2026 15:47:24",
+      "machine": "MP89",
+      "change": "Status: warning → ok, Date: 19/05/2026 15:21 → 19/05/2026 15:47"
+    },
+    {
+      "date": "19/05/2026 15:47:22",
+      "machine": "MP89",
+      "change": "Réparation résolue: \"Prise elec HS.\""
+    },
+    {
+      "date": "19/05/2026 15:47:20",
+      "machine": "MP89",
+      "change": "Réparation résolue: \"Prise elec HS.\""
+    },
+    {
+      "date": "19/05/2026 15:47:17",
+      "machine": "MP89",
+      "change": "Réparation résolue: \"Prise elec HS.\""
+    },
+    {
+      "date": "19/05/2026 15:47:16",
+      "machine": "MP89",
+      "change": "Réparation résolue: \"Prise elec HS.\""
+    },
+    {
+      "date": "19/05/2026 15:47:15",
+      "machine": "MP89",
+      "change": "Réparation résolue: \"Prise elec HS.\""
+    },
+    {
+      "date": "19/05/2026 15:22:51",
+      "machine": "MP31",
+      "change": "ADAM: fonctionnelle → fonctionnelle, Date: 27/04/2026 09:15 → 19/05/2026 15:22"
+    },
+    {
+      "date": "19/05/2026 15:21:19",
+      "machine": "MP89",
+      "change": "Status: ok → warning, Date: 13/05/2026 10:06 → 19/05/2026 15:21"
+    },
+    {
+      "date": "19/05/2026 15:20:43",
+      "machine": "MP86",
+      "change": "Status: ok → warning, Date: 30/04/2026 10:02 → 19/05/2026 15:20"
+    },
+    {
+      "date": "18/05/2026 15:57:07",
+      "machine": "MP40",
+      "change": "Date: 27/04/2026 08:30 → 18/05/2026 15:57, PM: 6 mois Novembre 2025 → 6 mois Décembre 2025, Report PM +1 mois appliqué (historique sauvegardé)"
+    },
+    {
+      "date": "13/05/2026 10:06:12",
+      "machine": "MP89",
+      "change": "IMPROVEMENT: SPIN MIX, REMETTRE CACHE LUMI -> SPIN MIX, Last Update: 2026-05-06T11:20:05 -> 2026-05-13T10:06:12"
+    },
+    {
+      "date": "12/05/2026 11:26:37",
+      "machine": "Access2 #501278",
+      "change": "Date: 11/05/2026 16:43 → 12/05/2026 11:26, PM: 6 mois Janvier 2026 → 12 mois Mars 2026"
+    }
+  ],
+  "exportDate": "2026-07-09T00:00:00.000Z",
+  "lastMonthlyMaintReset": "2026-07-02"
+}

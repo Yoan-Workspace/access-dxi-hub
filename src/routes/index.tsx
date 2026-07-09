@@ -5,16 +5,21 @@ import {
   Activity,
   ExternalLink,
   Loader2,
+  LogOut,
   Moon,
   Plus,
   Search,
   Sun,
+  Ticket as TicketIcon,
+  Users,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { MachineCard } from "@/components/MachineCard";
 import { EditMachineDialog, type EditMachineTab } from "@/components/EditMachineDialog";
 import { AddMachineDialog } from "@/components/AddMachineDialog";
+import { CreateTicketDialog } from "@/components/CreateTicketDialog";
+import { AdminUsersDialog } from "@/components/AdminUsersDialog";
 import {
   defaultFilters,
   MachineFilters,
@@ -23,12 +28,32 @@ import {
 import {
   API_CONFIGURED,
   createMachine,
+  createTicket,
+  createUser,
   deleteMachine,
+  deleteTicket,
+  deleteUser,
   fetchMachines,
+  fetchTickets,
+  fetchUsers,
+  getStoredToken,
+  getApiBase,
+  resetUserPassword,
   updateMachine,
+  updateTicket,
 } from "@/lib/api";
-import type { Machine } from "@/lib/types";
+import type { Machine, Ticket, User } from "@/lib/types";
 import { machineKind } from "@/lib/types";
+import { useAuth } from "@/lib/auth";
+import {
+  canCreateMachine,
+  canCreateTicket,
+  canDeleteMachine,
+  canEditMachine,
+  canManageUsers,
+  isReadOnlyUser,
+  roleLabel,
+} from "@/lib/permissions";
 import { useTheme } from "@/lib/theme";
 import { FALCON_MP_LAB_DASHBOARD_URL } from "@/lib/labManager";
 import { afterUiSettled } from "@/lib/ui";
@@ -112,10 +137,17 @@ function matchesPmFilter(machine: Machine, pm: MachineFiltersState["pm"]) {
 
 function HomePage() {
   const { theme, toggle } = useTheme();
+  const { user, logout } = useAuth();
   const qc = useQueryClient();
   const { data: machines = [], isLoading, error } = useQuery({
     queryKey: ["machines"],
     queryFn: fetchMachines,
+    enabled: Boolean(user),
+  });
+  const { data: tickets = [] } = useQuery({
+    queryKey: ["tickets"],
+    queryFn: () => fetchTickets(),
+    enabled: Boolean(user) && API_CONFIGURED,
   });
 
   const [filters, setFilters] = useState<MachineFiltersState>(defaultFilters);
@@ -123,21 +155,44 @@ function HomePage() {
   const [editing, setEditing] = useState<Machine | null>(null);
   const [editTab, setEditTab] = useState<EditMachineTab>("general");
   const [adding, setAdding] = useState(false);
+  const [creatingTicket, setCreatingTicket] = useState(false);
+  const [managingUsers, setManagingUsers] = useState(false);
+  const [users, setUsers] = useState<User[]>([]);
 
   const dialogOpenRef = useRef(false);
   const skipSseRef = useRef(0);
+  const readOnly = isReadOnlyUser(user);
+
+  const ticketsByMachine = useMemo(() => {
+    const map = new Map<number, { open: number; closed: number; items: Ticket[] }>();
+    for (const ticket of tickets) {
+      const current = map.get(ticket.machineId) ?? { open: 0, closed: 0, items: [] };
+      if (ticket.status === "open") current.open += 1;
+      else current.closed += 1;
+      current.items.push(ticket);
+      map.set(ticket.machineId, current);
+    }
+    return map;
+  }, [tickets]);
+
+  const editingTickets = editing
+    ? ticketsByMachine.get(editing.id)?.items ?? []
+    : [];
 
   useEffect(() => {
-    dialogOpenRef.current = Boolean(editing) || adding;
-  }, [editing, adding]);
+    dialogOpenRef.current = Boolean(editing) || adding || creatingTicket;
+  }, [editing, adding, creatingTicket]);
 
   useEffect(() => {
+    if (!API_CONFIGURED || !user) return;
+
+    const apiBase = getApiBase();
     if (!API_CONFIGURED) return;
 
-    const apiBase = import.meta.env.VITE_API_URL?.replace(/\/$/, "");
-    if (!apiBase) return;
-
-    const source = new EventSource(`${apiBase}/api/events`);
+    const token = getStoredToken();
+    const source = new EventSource(
+      `${apiBase}/api/events${token ? `?token=${encodeURIComponent(token)}` : ""}`,
+    );
     source.onmessage = () => {
       if (skipSseRef.current > 0) {
         skipSseRef.current -= 1;
@@ -148,10 +203,11 @@ function HomePage() {
 
       toast.info("Base de données mise à jour");
       void qc.invalidateQueries({ queryKey: ["machines"] });
+      void qc.invalidateQueries({ queryKey: ["tickets"] });
     };
 
     return () => source.close();
-  }, [qc]);
+  }, [qc, user]);
 
   const markLocalWrite = () => {
     skipSseRef.current += 1;
@@ -201,11 +257,62 @@ function HomePage() {
       qc.setQueryData<Machine[]>(["machines"], (prev) =>
         prev?.filter((m) => m.id !== id) ?? prev,
       );
+      qc.setQueryData<Ticket[]>(["tickets"], (prev) =>
+        prev?.filter((t) => t.machineId !== id) ?? prev,
+      );
       toast.success("Machine supprimée");
       closeEditDialog();
     },
     onError: (e) => toast.error(`Échec de la suppression : ${(e as Error).message}`),
   });
+
+  const createTicketMutation = useMutation({
+    mutationFn: createTicket,
+    onMutate: markLocalWrite,
+    onSuccess: (created) => {
+      qc.setQueryData<Ticket[]>(["tickets"], (prev) =>
+        prev ? [...prev, created] : [created],
+      );
+      toast.success("Ticket créé");
+      setCreatingTicket(false);
+    },
+    onError: (e) => toast.error(`Échec du ticket : ${(e as Error).message}`),
+  });
+
+  const updateTicketMutation = useMutation({
+    mutationFn: ({
+      id,
+      input,
+    }: {
+      id: number;
+      input: Partial<Pick<Ticket, "category" | "comment" | "status">>;
+    }) => updateTicket(id, input),
+    onMutate: markLocalWrite,
+    onSuccess: (updated) => {
+      qc.setQueryData<Ticket[]>(["tickets"], (prev) =>
+        prev?.map((t) => (t.id === updated.id ? updated : t)) ?? prev,
+      );
+      toast.success("Ticket mis à jour");
+    },
+    onError: (e) => toast.error(`Échec du ticket : ${(e as Error).message}`),
+  });
+
+  const deleteTicketMutation = useMutation({
+    mutationFn: deleteTicket,
+    onMutate: markLocalWrite,
+    onSuccess: (_data, id) => {
+      qc.setQueryData<Ticket[]>(["tickets"], (prev) =>
+        prev?.filter((t) => t.id !== id) ?? prev,
+      );
+      toast.success("Ticket supprimé");
+    },
+    onError: (e) => toast.error(`Échec du ticket : ${(e as Error).message}`),
+  });
+
+  const refreshUsers = async () => {
+    if (!canManageUsers(user?.role)) return;
+    setUsers(await fetchUsers());
+  };
 
   const openEdit = (machine: Machine, tab: EditMachineTab = "general") => {
     setEditing(machine);
@@ -275,6 +382,11 @@ function HomePage() {
               <h1 className="text-base font-semibold tracking-tight">Status Machines</h1>
               <p className="text-xs text-muted-foreground">
                 DXI 9000 (Falcon / MP) & Access 2
+                {user && (
+                  <span className="ml-2 text-foreground/70">
+                    · {user.displayName} ({roleLabel(user.role)})
+                  </span>
+                )}
               </p>
             </div>
           </div>
@@ -314,21 +426,39 @@ function HomePage() {
             </Button>
             {!API_CONFIGURED && (
               <span className="hidden rounded-md border border-warning/40 bg-warning/10 px-2 py-1 text-[11px] font-medium text-warning sm:inline">
-                Mode démo — VITE_API_URL non défini
+                Mode démo — lancez le serveur pour activer l'API
               </span>
             )}
+            {canCreateTicket(user?.role) && API_CONFIGURED && (
+              <Button variant="outline" onClick={() => setCreatingTicket(true)}>
+                <TicketIcon className="h-4 w-4" />
+                <span className="hidden sm:inline">Ouvrir un ticket</span>
+              </Button>
+            )}
+            {canCreateMachine(user?.role) && (
             <Button
               onClick={() => setAdding(true)}
               disabled={!API_CONFIGURED}
               title={
                 API_CONFIGURED
                   ? "Ajouter une machine"
-                  : "Configurez VITE_API_URL pour ajouter une machine"
+                  : "Lancez le serveur pour ajouter une machine"
               }
             >
               <Plus className="h-4 w-4" />
               <span className="hidden sm:inline">Nouvelle machine</span>
             </Button>
+            )}
+            {canManageUsers(user?.role) && (
+              <Button variant="outline" size="icon" onClick={() => setManagingUsers(true)} title="Utilisateurs">
+                <Users className="h-4 w-4" />
+              </Button>
+            )}
+            {API_CONFIGURED && user && (
+              <Button variant="outline" size="icon" onClick={() => void logout()} title="Déconnexion">
+                <LogOut className="h-4 w-4" />
+              </Button>
+            )}
             <Button variant="outline" size="icon" onClick={toggle} aria-label="Thème">
               {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
             </Button>
@@ -371,9 +501,18 @@ function HomePage() {
             </div>
           ) : (
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
-              {filtered.map((m) => (
-                <MachineCard key={m.id} machine={m} onEdit={(tab) => openEdit(m, tab)} />
-              ))}
+              {filtered.map((m) => {
+                const ticketStats = ticketsByMachine.get(m.id);
+                return (
+                  <MachineCard
+                    key={m.id}
+                    machine={m}
+                    ticketsOpen={ticketStats?.open ?? 0}
+                    ticketsClosed={ticketStats?.closed ?? 0}
+                    onEdit={(tab) => openEdit(m, tab)}
+                  />
+                );
+              })}
             </div>
           )}
         </section>
@@ -387,6 +526,8 @@ function HomePage() {
         machine={editing}
         open={!!editing}
         initialTab={editTab}
+        readOnly={readOnly}
+        tickets={editingTickets}
         onOpenChange={(o) => {
           if (!o) {
             setEditing(null);
@@ -397,14 +538,21 @@ function HomePage() {
           await updateMutation.mutateAsync(m);
         }}
         onDelete={
-          API_CONFIGURED
+          API_CONFIGURED && canDeleteMachine(user?.role)
             ? async (id) => {
                 await deleteMutation.mutateAsync(id);
               }
             : undefined
         }
+        onUpdateTicket={async (id, input) => {
+          await updateTicketMutation.mutateAsync({ id, input });
+        }}
+        onDeleteTicket={async (id) => {
+          await deleteTicketMutation.mutateAsync(id);
+        }}
       />
 
+      {canCreateMachine(user?.role) && (
       <AddMachineDialog
         open={adding}
         onOpenChange={setAdding}
@@ -412,6 +560,40 @@ function HomePage() {
           await createMutation.mutateAsync(machine);
         }}
       />
+      )}
+
+      <CreateTicketDialog
+        open={creatingTicket}
+        machines={machines}
+        onOpenChange={setCreatingTicket}
+        onCreate={async (input) => {
+          await createTicketMutation.mutateAsync(input);
+        }}
+      />
+
+      {user && canManageUsers(user.role) && (
+        <AdminUsersDialog
+          open={managingUsers}
+          onOpenChange={setManagingUsers}
+          users={users}
+          currentUserId={user.id}
+          onRefresh={refreshUsers}
+          onCreate={async (input) => {
+            await createUser(input);
+            await refreshUsers();
+            toast.success("Utilisateur créé");
+          }}
+          onDelete={async (id) => {
+            await deleteUser(id);
+            await refreshUsers();
+            toast.success("Utilisateur supprimé");
+          }}
+          onResetPassword={async (id, password) => {
+            await resetUserPassword(id, password);
+            toast.success("Mot de passe réinitialisé");
+          }}
+        />
+      )}
     </div>
   );
 }
