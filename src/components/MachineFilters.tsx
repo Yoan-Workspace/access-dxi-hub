@@ -9,6 +9,7 @@ import {
   Microchip,
   RotateCcw,
   SlidersHorizontal,
+  Ticket,
   X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -17,12 +18,14 @@ export type TypeFilter = "all" | "mp" | "access";
 export type StatusFilter = "all" | "ok" | "maintenance" | "danger";
 export type PmFilter = "all" | "pm-overdue" | "pm-current" | "pm-next";
 export type TrackFilter = "all" | "flags" | "improve" | "asd-pending";
+export type TicketsFilter = "all" | "open";
 
 export interface MachineFiltersState {
   type: TypeFilter;
   status: StatusFilter;
   pm: PmFilter;
   track: TrackFilter;
+  tickets: TicketsFilter;
 }
 
 export const defaultFilters: MachineFiltersState = {
@@ -30,6 +33,7 @@ export const defaultFilters: MachineFiltersState = {
   status: "all",
   pm: "all",
   track: "all",
+  tickets: "all",
 };
 
 export interface FilterStats {
@@ -46,6 +50,7 @@ export interface FilterStats {
   pmNext: number;
   pmOverdue: number;
   activeProblems: number;
+  openTickets: number;
 }
 
 export function hasActiveFilters(filters: MachineFiltersState) {
@@ -53,7 +58,8 @@ export function hasActiveFilters(filters: MachineFiltersState) {
     filters.type !== "all" ||
     filters.status !== "all" ||
     filters.pm !== "all" ||
-    filters.track !== "all"
+    filters.track !== "all" ||
+    filters.tickets !== "all"
   );
 }
 
@@ -64,13 +70,14 @@ interface Props {
   onReset: () => void;
 }
 
-type GroupId = "type" | "status" | "pm" | "track";
+type GroupId = "type" | "status" | "pm" | "track" | "tickets";
 
 const groupLabels: Record<GroupId, string> = {
   type: "Type",
   status: "État",
   pm: "PM",
   track: "Suivi",
+  tickets: "Tickets",
 };
 
 function activeLabel(filters: MachineFiltersState, group: GroupId): string | null {
@@ -94,6 +101,9 @@ function activeLabel(filters: MachineFiltersState, group: GroupId): string | nul
       if (filters.track === "improve") return "Improv.";
       if (filters.track === "asd-pending") return "ASD / Sys.";
       return null;
+    case "tickets":
+      if (filters.tickets === "open") return "Ouverts";
+      return null;
   }
 }
 
@@ -107,6 +117,8 @@ function groupAlert(stats: FilterStats, group: GroupId): boolean {
       return stats.pmOverdue > 0 || stats.pmCurrent > 0;
     case "track":
       return stats.flags > 0 || stats.improve > 0 || stats.asdPending > 0;
+    case "tickets":
+      return stats.openTickets > 0;
   }
 }
 
@@ -116,7 +128,7 @@ export function MachineFilters({ filters, stats, onChange, onReset }: Props) {
   const set = <K extends keyof MachineFiltersState>(key: K, value: MachineFiltersState[K]) =>
     onChange({ ...filters, [key]: value });
 
-  const groups: GroupId[] = ["type", "status", "pm", "track"];
+  const groups: GroupId[] = ["type", "status", "pm", "track", "tickets"];
 
   return (
     <section className="space-y-2">
@@ -241,6 +253,21 @@ export function MachineFilters({ filters, stats, onChange, onReset }: Props) {
                 </Chip>
               </>
             )}
+
+            {group === "tickets" && (
+              <>
+                <Chip active={filters.tickets === "all"} onClick={() => set("tickets", "all")}>
+                  Toutes
+                </Chip>
+                <Chip
+                  active={filters.tickets === "open"}
+                  onClick={() => set("tickets", "open")}
+                  tone="danger"
+                >
+                  <Ticket className="h-3 w-3" /> Ouverts ({stats.openTickets})
+                </Chip>
+              </>
+            )}
           </FilterBanner>
         ))}
 
@@ -261,7 +288,16 @@ export function MachineFilters({ filters, stats, onChange, onReset }: Props) {
           {groups.map((group) => {
             const label = activeLabel(filters, group);
             if (!label) return null;
-            const key = group === "type" ? "type" : group === "status" ? "status" : group === "pm" ? "pm" : "track";
+            const key =
+              group === "type"
+                ? "type"
+                : group === "status"
+                  ? "status"
+                  : group === "pm"
+                    ? "pm"
+                    : group === "track"
+                      ? "track"
+                      : "tickets";
             return (
               <button
                 key={group}
@@ -321,6 +357,7 @@ function FilterBanner({
     status: <AlertCircle className="h-3.5 w-3.5" />,
     pm: <Calendar className="h-3.5 w-3.5" />,
     track: <Flag className="h-3.5 w-3.5" />,
+    tickets: <Ticket className="h-3.5 w-3.5" />,
   };
 
   return (
