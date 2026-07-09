@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Plus, Trash2, Check, Ticket } from "lucide-react";
+import { Plus, Trash2, Check, Ticket as TicketIcon } from "lucide-react";
 import type { Machine, Ticket, TodoItem } from "@/lib/types";
 import { machineKind } from "@/lib/types";
 import { MachineTicketsPanel } from "@/components/MachineTicketsPanel";

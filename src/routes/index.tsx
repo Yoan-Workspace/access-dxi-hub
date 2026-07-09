@@ -6,6 +6,7 @@ import {
   ExternalLink,
   Loader2,
   LogOut,
+  KeyRound,
   Moon,
   Plus,
   Search,
@@ -20,6 +21,7 @@ import { EditMachineDialog, type EditMachineTab } from "@/components/EditMachine
 import { AddMachineDialog } from "@/components/AddMachineDialog";
 import { CreateTicketDialog } from "@/components/CreateTicketDialog";
 import { AdminUsersDialog } from "@/components/AdminUsersDialog";
+import { ChangePasswordDialog } from "@/components/ChangePasswordDialog";
 import {
   defaultFilters,
   MachineFilters,
@@ -157,6 +159,7 @@ function HomePage() {
   const [adding, setAdding] = useState(false);
   const [creatingTicket, setCreatingTicket] = useState(false);
   const [managingUsers, setManagingUsers] = useState(false);
+  const [changePasswordOpen, setChangePasswordOpen] = useState(false);
   const [users, setUsers] = useState<User[]>([]);
 
   const dialogOpenRef = useRef(false);
@@ -455,6 +458,16 @@ function HomePage() {
               </Button>
             )}
             {API_CONFIGURED && user && (
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={() => setChangePasswordOpen(true)}
+                title="Modifier mon mot de passe"
+              >
+                <KeyRound className="h-4 w-4" />
+              </Button>
+            )}
+            {API_CONFIGURED && user && (
               <Button variant="outline" size="icon" onClick={() => void logout()} title="Déconnexion">
                 <LogOut className="h-4 w-4" />
               </Button>
@@ -592,6 +605,13 @@ function HomePage() {
             await resetUserPassword(id, password);
             toast.success("Mot de passe réinitialisé");
           }}
+        />
+      )}
+
+      {user && API_CONFIGURED && (
+        <ChangePasswordDialog
+          open={changePasswordOpen}
+          onOpenChange={setChangePasswordOpen}
         />
       )}
     </div>

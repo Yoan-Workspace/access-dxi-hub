@@ -1,10 +1,11 @@
 import { QueryClient } from "@tanstack/react-query";
-import { Outlet, Link, createRootRouteWithContext, useRouter, useRouterState } from "@tanstack/react-router";
+import { Outlet, Link, createRootRouteWithContext } from "@tanstack/react-router";
 import { useEffect } from "react";
 import { Loader2 } from "lucide-react";
 import { Toaster } from "@/components/ui/sonner";
 import { AuthProvider, useAuth } from "@/lib/auth";
 import { API_CONFIGURED } from "@/lib/api";
+import { LoginDialog } from "@/components/LoginDialog";
 
 function NotFoundComponent() {
   return (
@@ -26,7 +27,6 @@ function NotFoundComponent() {
 }
 
 function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
-  const router = useRouter();
   useEffect(() => {
     console.error(error);
   }, [error]);
@@ -36,10 +36,7 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
         <h1 className="text-xl font-semibold text-foreground">Une erreur est survenue</h1>
         <p className="mt-2 text-sm text-muted-foreground">{error.message}</p>
         <button
-          onClick={() => {
-            router.invalidate();
-            reset();
-          }}
+          onClick={reset}
           className="mt-6 inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
         >
           Réessayer
@@ -66,21 +63,7 @@ function RootComponent() {
 
 function AuthGate() {
   const { user, loading } = useAuth();
-  const router = useRouter();
-  const pathname = useRouterState({ select: (s) => s.location.pathname });
-
-  useEffect(() => {
-    if (loading || !API_CONFIGURED) return;
-
-    if (!user && pathname !== "/login") {
-      void router.navigate({ to: "/login" });
-      return;
-    }
-
-    if (user && pathname === "/login") {
-      void router.navigate({ to: "/" });
-    }
-  }, [user, loading, pathname, router]);
+  const showLogin = API_CONFIGURED && !loading && !user;
 
   if (loading) {
     return (
@@ -91,9 +74,12 @@ function AuthGate() {
     );
   }
 
-  if (API_CONFIGURED && !user && pathname !== "/login") {
-    return null;
-  }
-
-  return <Outlet />;
+  return (
+    <>
+      <div className={showLogin ? "pointer-events-none select-none blur-sm" : undefined}>
+        <Outlet />
+      </div>
+      <LoginDialog open={showLogin} />
+    </>
+  );
 }
