@@ -1,7 +1,10 @@
 import { QueryClient } from "@tanstack/react-query";
-import { Outlet, Link, createRootRouteWithContext, useRouter } from "@tanstack/react-router";
+import { Outlet, Link, createRootRouteWithContext, useRouter, useRouterState } from "@tanstack/react-router";
 import { useEffect } from "react";
+import { Loader2 } from "lucide-react";
 import { Toaster } from "@/components/ui/sonner";
+import { AuthProvider, useAuth } from "@/lib/auth";
+import { API_CONFIGURED } from "@/lib/api";
 
 function NotFoundComponent() {
   return (
@@ -54,9 +57,43 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
 
 function RootComponent() {
   return (
-    <>
-      <Outlet />
+    <AuthProvider>
+      <AuthGate />
       <Toaster richColors position="top-right" />
-    </>
+    </AuthProvider>
   );
+}
+
+function AuthGate() {
+  const { user, loading } = useAuth();
+  const router = useRouter();
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+
+  useEffect(() => {
+    if (loading || !API_CONFIGURED) return;
+
+    if (!user && pathname !== "/login") {
+      void router.navigate({ to: "/login" });
+      return;
+    }
+
+    if (user && pathname === "/login") {
+      void router.navigate({ to: "/" });
+    }
+  }, [user, loading, pathname, router]);
+
+  if (loading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center text-muted-foreground">
+        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+        Chargement…
+      </div>
+    );
+  }
+
+  if (API_CONFIGURED && !user && pathname !== "/login") {
+    return null;
+  }
+
+  return <Outlet />;
 }

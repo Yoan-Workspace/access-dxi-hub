@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
-import { Plus, Trash2, Check } from "lucide-react";
-import type { Machine, TodoItem } from "@/lib/types";
+import { Plus, Trash2, Check, Ticket } from "lucide-react";
+import type { Machine, Ticket, TodoItem } from "@/lib/types";
 import { machineKind } from "@/lib/types";
+import { MachineTicketsPanel } from "@/components/MachineTicketsPanel";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -37,15 +38,23 @@ export type EditMachineTab =
   | "flags"
   | "problems"
   | "repairs"
-  | "improvements";
+  | "improvements"
+  | "tickets";
 
 interface Props {
   machine: Machine | null;
   open: boolean;
   initialTab?: EditMachineTab;
+  readOnly?: boolean;
+  tickets?: Ticket[];
   onOpenChange: (open: boolean) => void;
   onSave: (m: Machine) => Promise<void> | void;
   onDelete?: (id: number) => Promise<void> | void;
+  onUpdateTicket?: (
+    id: number,
+    input: Partial<Pick<Ticket, "category" | "comment" | "status">>,
+  ) => Promise<void>;
+  onDeleteTicket?: (id: number) => Promise<void>;
 }
 
 const months = [
@@ -92,9 +101,13 @@ export function EditMachineDialog({
   machine,
   open,
   initialTab = "general",
+  readOnly = false,
+  tickets = [],
   onOpenChange,
   onSave,
   onDelete,
+  onUpdateTicket,
+  onDeleteTicket,
 }: Props) {
   const [draft, setDraft] = useState<Machine | null>(machine);
   const [tab, setTab] = useState<EditMachineTab>(initialTab);
@@ -164,7 +177,7 @@ const remove = async () => {
       <DialogContent className="max-h-[90vh] max-w-3xl overflow-hidden p-0">
         <DialogHeader className="border-b px-6 py-4">
           <DialogTitle className="flex items-center gap-2 text-base">
-            <span className="text-muted-foreground">Édition —</span>
+            <span className="text-muted-foreground">{readOnly ? "Consultation —" : "Édition —"}</span>
             <span className="font-semibold">{draft.name}</span>
           </DialogTitle>
         </DialogHeader>
@@ -180,10 +193,12 @@ const remove = async () => {
             <TabsTrigger value="problems">Problèmes</TabsTrigger>
             <TabsTrigger value="repairs">Réparations</TabsTrigger>
             <TabsTrigger value="improvements">Improvements</TabsTrigger>
+            <TabsTrigger value="tickets">Tickets</TabsTrigger>
           </TabsList>
 
           <div className="flex-1 overflow-y-auto px-6 pb-6 pt-4">
             <TabsContent value="general" className="mt-0 space-y-5">
+              <fieldset disabled={readOnly} className="space-y-5 disabled:opacity-100">
               <div className="grid grid-cols-2 gap-4">
                 <Field label="Nom">
                   <Input value={draft.name} onChange={(e) => set("name", e.target.value)} />
@@ -411,6 +426,7 @@ const remove = async () => {
     </Field>
   </div>
 </div>
+              </fieldset>
             </TabsContent>
 
             <TabsContent value="flags" className="mt-0">
@@ -418,6 +434,7 @@ const remove = async () => {
                 items={draft.flags}
                 onChange={(items) => set("flags", items)}
                 placeholder="Nouveau flag…"
+                readOnly={readOnly}
               />
             </TabsContent>
             <TabsContent value="problems" className="mt-0">
@@ -425,6 +442,7 @@ const remove = async () => {
                 items={draft.problems}
                 onChange={(items) => set("problems", items)}
                 placeholder="Nouveau problème…"
+                readOnly={readOnly}
               />
             </TabsContent>
             <TabsContent value="repairs" className="mt-0">
@@ -432,6 +450,7 @@ const remove = async () => {
                 items={draft.repairs}
                 onChange={(items) => set("repairs", items)}
                 placeholder="Nouvelle réparation…"
+                readOnly={readOnly}
               />
             </TabsContent>
             <TabsContent value="improvements" className="mt-0">
@@ -439,13 +458,29 @@ const remove = async () => {
                 items={draft.improvements}
                 onChange={(items) => set("improvements", items)}
                 placeholder="Nouvelle amélioration…"
+                readOnly={readOnly}
               />
+            </TabsContent>
+            <TabsContent value="tickets" className="mt-0">
+              {onUpdateTicket && onDeleteTicket ? (
+                <MachineTicketsPanel
+                  tickets={tickets}
+                  onUpdate={onUpdateTicket}
+                  onDelete={onDeleteTicket}
+                />
+              ) : (
+                <MachineTicketsPanel
+                  tickets={tickets}
+                  onUpdate={async () => {}}
+                  onDelete={async () => {}}
+                />
+              )}
             </TabsContent>
           </div>
         </Tabs>
 
         <DialogFooter className="flex-col gap-3 border-t bg-muted/30 px-6 py-3 sm:flex-row sm:items-center sm:justify-between">
-          {onDelete ? (
+          {!readOnly && onDelete ? (
             <Button
               type="button"
               variant="outline"
@@ -467,11 +502,13 @@ const remove = async () => {
               disabled={saving || deleting}
               className="flex-1 sm:flex-none"
             >
-              Annuler
+              {readOnly ? "Fermer" : "Annuler"}
             </Button>
+            {!readOnly && (
             <Button onClick={save} disabled={saving || deleting} className="flex-1 sm:flex-none">
               {saving ? "Enregistrement…" : "Enregistrer"}
             </Button>
+            )}
           </div>
         </DialogFooter>
       </DialogContent>
@@ -518,10 +555,12 @@ function TodoEditor({
   items,
   onChange,
   placeholder,
+  readOnly = false,
 }: {
   items: TodoItem[];
   onChange: (items: TodoItem[]) => void;
   placeholder: string;
+  readOnly?: boolean;
 }) {
   const [text, setText] = useState("");
 
@@ -550,6 +589,7 @@ function TodoEditor({
 
   return (
     <div className="space-y-3">
+      {!readOnly && (
       <div className="flex gap-2">
         <Input
           value={text}
@@ -566,6 +606,7 @@ function TodoEditor({
           <Plus className="h-4 w-4" /> Ajouter
         </Button>
       </div>
+      )}
 
       {items.length === 0 ? (
         <p className="rounded-lg border border-dashed py-6 text-center text-sm text-muted-foreground">
@@ -584,6 +625,7 @@ function TodoEditor({
               <button
                 type="button"
                 onClick={() => toggle(i)}
+                disabled={readOnly}
                 className={cn(
                   "flex h-5 w-5 shrink-0 items-center justify-center rounded-md border transition",
                   it.completed
@@ -597,6 +639,7 @@ function TodoEditor({
               <input
                 value={it.text}
                 onChange={(e) => updateText(i, e.target.value)}
+                readOnly={readOnly}
                 className={cn(
                   "min-w-0 flex-1 bg-transparent text-sm outline-none",
                   it.completed && "line-through",
@@ -607,6 +650,7 @@ function TodoEditor({
                   {it.completedDate}
                 </span>
               )}
+              {!readOnly && (
               <button
                 type="button"
                 onClick={() => remove(i)}
@@ -615,6 +659,7 @@ function TodoEditor({
               >
                 <Trash2 className="h-3.5 w-3.5" />
               </button>
+              )}
             </li>
           ))}
         </ul>

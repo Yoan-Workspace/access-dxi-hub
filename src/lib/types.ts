@@ -43,6 +43,33 @@ export interface Machine {
 
 export type MachineKind = "MP" | "ACCESS";
 
+export type UserRole = "admin" | "technicien" | "operateur";
+
+export type TicketCategory = "reparation" | "probleme" | "flag" | "non_classe";
+
+export type TicketStatus = "open" | "closed";
+
+export interface User {
+  id: number;
+  username: string;
+  displayName: string;
+  role: UserRole;
+}
+
+export interface Ticket {
+  id: number;
+  machineId: number;
+  category: TicketCategory;
+  comment: string;
+  status: TicketStatus;
+  createdBy: number;
+  createdByName: string;
+  createdAt: string;
+  updatedAt: string;
+  closedAt?: string;
+  closedBy?: string;
+}
+
 export function machineKind(m: Pick<Machine, "name">): MachineKind {
   const name = m.name.toLowerCase();
   if (name.startsWith("access")) return "ACCESS";
