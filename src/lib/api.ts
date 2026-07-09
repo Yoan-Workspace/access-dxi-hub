@@ -99,6 +99,13 @@ export async function fetchCurrentUser(): Promise<User | null> {
   return data.user;
 }
 
+export async function changePassword(currentPassword: string, newPassword: string) {
+  await apiFetch("/api/auth/change-password", {
+    method: "POST",
+    body: JSON.stringify({ currentPassword, newPassword }),
+  });
+}
+
 export async function fetchMachines(): Promise<Machine[]> {
   if (API_CONFIGURED) {
     const data = (await apiFetch("/api/machines")) as { machines: Machine[] };

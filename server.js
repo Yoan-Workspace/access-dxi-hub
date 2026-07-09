@@ -278,6 +278,32 @@ app.get("/api/auth/me", authMiddleware, (req, res) => {
   res.json({ user: req.user });
 });
 
+app.post("/api/auth/change-password", authMiddleware, (req, res) => {
+  const { currentPassword, newPassword } = req.body ?? {};
+
+  if (!currentPassword || !newPassword) {
+    return res.status(400).json({ error: "Mot de passe actuel et nouveau requis" });
+  }
+
+  if (newPassword.length < 4) {
+    return res.status(400).json({ error: "Mot de passe trop court" });
+  }
+
+  const data = ensureDataShape(readData());
+  const user = data.users.find((u) => u.id === req.user.id);
+
+  if (!user || !verifyPassword(currentPassword, user.salt, user.passwordHash)) {
+    return res.status(401).json({ error: "Mot de passe actuel incorrect" });
+  }
+
+  const { salt, hash } = hashPassword(newPassword);
+  user.salt = salt;
+  user.passwordHash = hash;
+  writeData(data);
+
+  res.json({ ok: true });
+});
+
 //
 // Users (admin)
 //
