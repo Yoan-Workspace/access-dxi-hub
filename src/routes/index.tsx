@@ -178,6 +178,14 @@ function HomePage() {
     return map;
   }, [tickets]);
 
+  const machineIdsWithOpenTickets = useMemo(() => {
+    const ids = new Set<number>();
+    for (const ticket of tickets) {
+      if (ticket.status === "open") ids.add(ticket.machineId);
+    }
+    return ids;
+  }, [tickets]);
+
   const editingTickets = editing
     ? ticketsByMachine.get(editing.id)?.items ?? []
     : [];
@@ -343,8 +351,9 @@ function HomePage() {
       pmCurrent: machines.filter((m) => matchesPmFilter(m, "pm-current")).length,
       pmNext: machines.filter((m) => matchesPmFilter(m, "pm-next")).length,
       pmOverdue: machines.filter((m) => matchesPmFilter(m, "pm-overdue")).length,
+      openTickets: machines.filter((m) => machineIdsWithOpenTickets.has(m.id)).length,
     };
-  }, [machines]);
+  }, [machines, machineIdsWithOpenTickets]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -369,9 +378,11 @@ function HomePage() {
       }
       if (filters.track === "asd-pending" && m.asdStatus === "valid") return false;
 
+      if (filters.tickets === "open" && !machineIdsWithOpenTickets.has(m.id)) return false;
+
       return true;
     });
-  }, [machines, filters, query]);
+  }, [machines, filters, query, machineIdsWithOpenTickets]);
 
   return (
     <div className="min-h-screen bg-background">
