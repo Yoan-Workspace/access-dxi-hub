@@ -146,11 +146,23 @@ export async function createTicket(input: {
   machineId: number;
   category: Ticket["category"];
   comment: string;
-}): Promise<{ ticket: Ticket; machine: Machine }> {
-  return (await apiFetch("/api/tickets", {
+}): Promise<{ ticket: Ticket; machine?: Machine }> {
+  const data = (await apiFetch("/api/tickets", {
     method: "POST",
     body: JSON.stringify(input),
-  })) as { ticket: Ticket; machine: Machine };
+  })) as Ticket | { ticket: Ticket; machine?: Machine };
+
+  // Ancien format (ticket brut) ou nouveau format ({ ticket, machine })
+  if (data && typeof data === "object" && "ticket" in data && data.ticket) {
+    return { ticket: data.ticket, machine: data.machine };
+  }
+
+  const ticket = data as Ticket;
+  if (!ticket?.machineId) {
+    throw new Error("Réponse ticket invalide du serveur");
+  }
+
+  return { ticket };
 }
 
 export async function updateTicket(

@@ -169,6 +169,7 @@ function HomePage() {
   const ticketsByMachine = useMemo(() => {
     const map = new Map<number, { open: number; closed: number; items: Ticket[] }>();
     for (const ticket of tickets) {
+      if (!ticket?.machineId) continue;
       const current = map.get(ticket.machineId) ?? { open: 0, closed: 0, items: [] };
       if (ticket.status === "open") current.open += 1;
       else current.closed += 1;
@@ -242,6 +243,7 @@ function HomePage() {
       qc.setQueryData<Machine[]>(["machines"], (prev) =>
         prev?.map((m) => (m.id === updated.id ? updated : m)) ?? prev,
       );
+      void qc.invalidateQueries({ queryKey: ["tickets"] });
       toast.success("Machine mise à jour");
       closeEditDialog();
     },
@@ -281,15 +283,42 @@ function HomePage() {
     mutationFn: createTicket,
     onMutate: markLocalWrite,
     onSuccess: ({ ticket, machine }) => {
+      if (!ticket?.machineId) {
+        toast.error("Réponse ticket invalide");
+        void qc.invalidateQueries({ queryKey: ["tickets"] });
+        void qc.invalidateQueries({ queryKey: ["machines"] });
+        return;
+      }
+
       qc.setQueryData<Ticket[]>(["tickets"], (prev) =>
         prev ? [...prev, ticket] : [ticket],
       );
-      qc.setQueryData<Machine[]>(["machines"], (prev) =>
-        prev?.map((m) => (m.id === machine.id ? machine : m)) ?? [machine],
-      );
-      setEditing((current) =>
-        current && current.id === machine.id ? machine : current,
-      );
+
+      if (machine) {
+        qc.setQueryData<Machine[]>(["machines"], (prev) =>
+          prev?.map((m) => (m.id === machine.id ? machine : m)) ?? [machine],
+        );
+        setEditing((current) =>
+          current && current.id === machine.id ? machine : current,
+        );
+      } else {
+        // Fallback : ajouter localement le problème / flag puis rafraîchir
+        qc.setQueryData<Machine[]>(["machines"], (prev) =>
+          prev?.map((m) => {
+            if (m.id !== ticket.machineId) return m;
+            const item = { text: ticket.comment, completed: false };
+            if (ticket.category === "flag") {
+              return { ...m, flags: [...(m.flags ?? []), item] };
+            }
+            if (ticket.category === "probleme") {
+              return { ...m, problems: [...(m.problems ?? []), item] };
+            }
+            return m;
+          }) ?? prev,
+        );
+        void qc.invalidateQueries({ queryKey: ["machines"] });
+      }
+
       toast.success("Ticket créé");
       setCreatingTicket(false);
     },
