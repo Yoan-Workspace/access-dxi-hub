@@ -59,6 +59,7 @@ import {
 import { useTheme } from "@/lib/theme";
 import { FALCON_MP_LAB_DASHBOARD_URL } from "@/lib/labManager";
 import { afterUiSettled } from "@/lib/ui";
+import { applyTicketsToMachine, applyTicketsToMachines } from "@/lib/ticketSync";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/")({
@@ -170,11 +171,12 @@ function HomePage() {
     const map = new Map<number, { open: number; closed: number; items: Ticket[] }>();
     for (const ticket of tickets) {
       if (!ticket?.machineId) continue;
-      const current = map.get(ticket.machineId) ?? { open: 0, closed: 0, items: [] };
+      const machineId = Number(ticket.machineId);
+      const current = map.get(machineId) ?? { open: 0, closed: 0, items: [] };
       if (ticket.status === "open") current.open += 1;
       else current.closed += 1;
       current.items.push(ticket);
-      map.set(ticket.machineId, current);
+      map.set(machineId, current);
     }
     return map;
   }, [tickets]);
@@ -182,13 +184,19 @@ function HomePage() {
   const machineIdsWithOpenTickets = useMemo(() => {
     const ids = new Set<number>();
     for (const ticket of tickets) {
-      if (ticket.status === "open") ids.add(ticket.machineId);
+      if (ticket.status === "open") ids.add(Number(ticket.machineId));
     }
     return ids;
   }, [tickets]);
 
+  /** Machines avec problems/flags synchronisés depuis les tickets */
+  const syncedMachines = useMemo(
+    () => applyTicketsToMachines(machines, tickets),
+    [machines, tickets],
+  );
+
   const editingTickets = editing
-    ? ticketsByMachine.get(editing.id)?.items ?? []
+    ? ticketsByMachine.get(Number(editing.id))?.items ?? []
     : [];
 
   useEffect(() => {
@@ -290,34 +298,39 @@ function HomePage() {
         return;
       }
 
-      qc.setQueryData<Ticket[]>(["tickets"], (prev) =>
-        prev ? [...prev, ticket] : [ticket],
-      );
+      const allTickets = [
+        ...((qc.getQueryData<Ticket[]>(["tickets"]) ?? []).filter(
+          (t) => Number(t.id) !== Number(ticket.id),
+        )),
+        ticket,
+      ];
 
-      if (machine) {
-        qc.setQueryData<Machine[]>(["machines"], (prev) =>
-          prev?.map((m) => (m.id === machine.id ? machine : m)) ?? [machine],
-        );
-        setEditing((current) =>
-          current && current.id === machine.id ? machine : current,
-        );
-      } else {
-        // Fallback : ajouter localement le problème / flag puis rafraîchir
-        qc.setQueryData<Machine[]>(["machines"], (prev) =>
-          prev?.map((m) => {
-            if (m.id !== ticket.machineId) return m;
-            const item = { text: ticket.comment, completed: false };
-            if (ticket.category === "flag") {
-              return { ...m, flags: [...(m.flags ?? []), item] };
-            }
-            if (ticket.category === "probleme") {
-              return { ...m, problems: [...(m.problems ?? []), item] };
-            }
-            return m;
-          }) ?? prev,
-        );
-        void qc.invalidateQueries({ queryKey: ["machines"] });
-      }
+      qc.setQueryData<Ticket[]>(["tickets"], allTickets);
+
+      qc.setQueryData<Machine[]>(["machines"], (prev) => {
+        const list = prev ?? [];
+        return list.map((m) => {
+          if (Number(m.id) !== Number(ticket.machineId)) return m;
+          const base =
+            machine && Number(machine.id) === Number(m.id) ? machine : m;
+          return applyTicketsToMachine(base, allTickets);
+        });
+      });
+
+      setEditing((current) => {
+        if (!current || Number(current.id) !== Number(ticket.machineId)) {
+          return current;
+        }
+        const base =
+          machine && Number(machine.id) === Number(current.id)
+            ? {
+                ...current,
+                flags: machine.flags ?? current.flags,
+                problems: machine.problems ?? current.problems,
+              }
+            : current;
+        return applyTicketsToMachine(base, allTickets);
+      });
 
       toast.success("Ticket créé");
       setCreatingTicket(false);
@@ -334,11 +347,38 @@ function HomePage() {
       input: Partial<Pick<Ticket, "category" | "comment" | "status">>;
     }) => updateTicket(id, input),
     onMutate: markLocalWrite,
-    onSuccess: (updated) => {
+    onSuccess: ({ ticket, machine }) => {
+      if (!ticket?.id) {
+        void qc.invalidateQueries({ queryKey: ["tickets"] });
+        void qc.invalidateQueries({ queryKey: ["machines"] });
+        return;
+      }
+
       qc.setQueryData<Ticket[]>(["tickets"], (prev) =>
-        prev?.map((t) => (t.id === updated.id ? updated : t)) ?? prev,
+        prev?.map((t) => (t.id === ticket.id ? ticket : t)) ?? prev,
       );
-      void qc.invalidateQueries({ queryKey: ["machines"] });
+
+      if (machine) {
+        qc.setQueryData<Machine[]>(["machines"], (prev) =>
+          prev?.map((m) => (m.id === machine.id ? machine : m)) ?? prev,
+        );
+      } else {
+        void qc.invalidateQueries({ queryKey: ["machines"] });
+      }
+
+      setEditing((current) => {
+        if (!current || current.id !== ticket.machineId) return current;
+        const allTickets = qc.getQueryData<Ticket[]>(["tickets"]) ?? [];
+        const withLists = machine
+          ? {
+              ...current,
+              flags: machine.flags ?? current.flags,
+              problems: machine.problems ?? current.problems,
+            }
+          : current;
+        return applyTicketsToMachine(withLists, allTickets);
+      });
+
       toast.success("Ticket mis à jour");
     },
     onError: (e) => toast.error(`Échec du ticket : ${(e as Error).message}`),
@@ -363,39 +403,40 @@ function HomePage() {
   };
 
   const openEdit = (machine: Machine, tab: EditMachineTab = "general") => {
-    setEditing(machine);
+    setEditing(applyTicketsToMachine(machine, tickets));
     setEditTab(tab);
   };
 
   const stats = useMemo(() => {
-    const now = new Date();
-    const nextMonth = new Date();
-    nextMonth.setMonth(nextMonth.getMonth() + 1);
     const pending = (items: { completed: boolean }[]) =>
       items.some((x) => !x.completed);
 
     return {
-      total: machines.length,
-      mp: machines.filter((m) => machineKind(m) === "MP").length,
-      access: machines.filter((m) => machineKind(m) === "ACCESS").length,
-      ok: machines.filter((m) => m.status === "ok").length,
-      maintenance: machines.filter((m) => m.status === "maintenance").length,
-      danger: machines.filter((m) => m.status === "danger").length,
-      activeProblems: machines.filter((m) => m.problems.some((p) => !p.completed)).length,
-      flags: machines.filter((m) => pending(m.flags)).length,
-      improve: machines.filter((m) => pending(m.improvements)).length,
-      asdPending: machines.filter((m) => m.asdStatus !== "valid").length,
-      pmCurrent: machines.filter((m) => matchesPmFilter(m, "pm-current")).length,
-      pmNext: machines.filter((m) => matchesPmFilter(m, "pm-next")).length,
-      pmOverdue: machines.filter((m) => matchesPmFilter(m, "pm-overdue")).length,
-      openTickets: machines.filter((m) => machineIdsWithOpenTickets.has(m.id)).length,
+      total: syncedMachines.length,
+      mp: syncedMachines.filter((m) => machineKind(m) === "MP").length,
+      access: syncedMachines.filter((m) => machineKind(m) === "ACCESS").length,
+      ok: syncedMachines.filter((m) => m.status === "ok").length,
+      maintenance: syncedMachines.filter((m) => m.status === "maintenance").length,
+      danger: syncedMachines.filter((m) => m.status === "danger").length,
+      activeProblems: syncedMachines.filter((m) =>
+        m.problems.some((p) => !p.completed),
+      ).length,
+      flags: syncedMachines.filter((m) => pending(m.flags)).length,
+      improve: syncedMachines.filter((m) => pending(m.improvements)).length,
+      asdPending: syncedMachines.filter((m) => m.asdStatus !== "valid").length,
+      pmCurrent: syncedMachines.filter((m) => matchesPmFilter(m, "pm-current")).length,
+      pmNext: syncedMachines.filter((m) => matchesPmFilter(m, "pm-next")).length,
+      pmOverdue: syncedMachines.filter((m) => matchesPmFilter(m, "pm-overdue")).length,
+      openTickets: syncedMachines.filter((m) =>
+        machineIdsWithOpenTickets.has(Number(m.id)),
+      ).length,
     };
-  }, [machines, machineIdsWithOpenTickets]);
+  }, [syncedMachines, machineIdsWithOpenTickets]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
 
-    return machines.filter((m) => {
+    return syncedMachines.filter((m) => {
       if (
         q &&
         !m.name.toLowerCase().includes(q) &&
@@ -415,11 +456,13 @@ function HomePage() {
       }
       if (filters.track === "asd-pending" && m.asdStatus === "valid") return false;
 
-      if (filters.tickets === "open" && !machineIdsWithOpenTickets.has(m.id)) return false;
+      if (filters.tickets === "open" && !machineIdsWithOpenTickets.has(Number(m.id))) {
+        return false;
+      }
 
       return true;
     });
-  }, [machines, filters, query, machineIdsWithOpenTickets]);
+  }, [syncedMachines, filters, query, machineIdsWithOpenTickets]);
 
   return (
     <div className="min-h-screen bg-background">
@@ -611,6 +654,11 @@ function HomePage() {
         onDeleteTicket={async (id) => {
           await deleteTicketMutation.mutateAsync(id);
         }}
+        onCreateTicket={
+          API_CONFIGURED && canCreateTicket(user?.role)
+            ? async (input) => createTicketMutation.mutateAsync(input)
+            : undefined
+        }
       />
 
       {canCreateMachine(user?.role) && (
