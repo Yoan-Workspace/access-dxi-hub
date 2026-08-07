@@ -231,7 +231,8 @@ function completeTicketOnMachine(machine, category, text, ticketId) {
   if (!list) return false;
 
   const item =
-    (ticketId != null && list.find((entry) => entry.ticketId === ticketId)) ||
+    (ticketId != null &&
+      list.find((entry) => Number(entry.ticketId) === Number(ticketId))) ||
     list.find((entry) => entry.text === text && entry.completed !== true);
 
   if (!item) return false;
@@ -240,6 +241,25 @@ function completeTicketOnMachine(machine, category, text, ticketId) {
   item.completedDate = new Date().toLocaleDateString("fr-FR");
   if (ticketId != null) item.ticketId = ticketId;
   return true;
+}
+
+function removeTicketFromMachine(machine, ticketId) {
+  if (ticketId == null) return false;
+  let changed = false;
+
+  for (const key of ["flags", "problems"]) {
+    const list = machine[key];
+    if (!Array.isArray(list)) continue;
+    const next = list.filter(
+      (item) => Number(item.ticketId) !== Number(ticketId),
+    );
+    if (next.length !== list.length) {
+      machine[key] = next;
+      changed = true;
+    }
+  }
+
+  return changed;
 }
 
 function closeTicketById(data, ticketId, closedBy) {
@@ -709,11 +729,27 @@ app.delete(
       return res.status(404).json({ error: "Ticket introuvable" });
     }
 
-    data.tickets.splice(index, 1);
+    const [removed] = data.tickets.splice(index, 1);
+    const machine = findMachine(data, removed.machineId);
+    if (machine) {
+      removeTicketFromMachine(machine, removed.id);
+      // Fallback si l'item n'avait pas encore de ticketId
+      if (removed.category === "flag" || removed.category === "probleme") {
+        const key = removed.category === "flag" ? "flags" : "problems";
+        if (Array.isArray(machine[key])) {
+          machine[key] = machine[key].filter(
+            (item) =>
+              Number(item.ticketId) !== Number(removed.id) &&
+              !(item.ticketId == null && item.text === removed.comment),
+          );
+        }
+      }
+    }
+
     writeData(data);
     notifyClients();
 
-    res.json({ ok: true });
+    res.json({ ok: true, machine: machine ?? null });
   },
 );
 

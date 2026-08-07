@@ -354,29 +354,34 @@ function HomePage() {
         return;
       }
 
-      qc.setQueryData<Ticket[]>(["tickets"], (prev) =>
-        prev?.map((t) => (t.id === ticket.id ? ticket : t)) ?? prev,
+      const allTickets = (qc.getQueryData<Ticket[]>(["tickets"]) ?? []).map((t) =>
+        Number(t.id) === Number(ticket.id) ? ticket : t,
       );
+      qc.setQueryData<Ticket[]>(["tickets"], allTickets);
 
-      if (machine) {
-        qc.setQueryData<Machine[]>(["machines"], (prev) =>
-          prev?.map((m) => (m.id === machine.id ? machine : m)) ?? prev,
-        );
-      } else {
-        void qc.invalidateQueries({ queryKey: ["machines"] });
-      }
+      qc.setQueryData<Machine[]>(["machines"], (prev) => {
+        const list = prev ?? [];
+        return list.map((m) => {
+          if (Number(m.id) !== Number(ticket.machineId)) return m;
+          const base =
+            machine && Number(machine.id) === Number(m.id) ? machine : m;
+          return applyTicketsToMachine(base, allTickets);
+        });
+      });
 
       setEditing((current) => {
-        if (!current || current.id !== ticket.machineId) return current;
-        const allTickets = qc.getQueryData<Ticket[]>(["tickets"]) ?? [];
-        const withLists = machine
-          ? {
-              ...current,
-              flags: machine.flags ?? current.flags,
-              problems: machine.problems ?? current.problems,
-            }
-          : current;
-        return applyTicketsToMachine(withLists, allTickets);
+        if (!current || Number(current.id) !== Number(ticket.machineId)) {
+          return current;
+        }
+        const base =
+          machine && Number(machine.id) === Number(current.id)
+            ? {
+                ...current,
+                flags: machine.flags ?? current.flags,
+                problems: machine.problems ?? current.problems,
+              }
+            : current;
+        return applyTicketsToMachine(base, allTickets);
       });
 
       toast.success("Ticket mis à jour");
@@ -387,11 +392,37 @@ function HomePage() {
   const deleteTicketMutation = useMutation({
     mutationFn: deleteTicket,
     onMutate: markLocalWrite,
-    onSuccess: (_data, id) => {
-      qc.setQueryData<Ticket[]>(["tickets"], (prev) =>
-        prev?.filter((t) => t.id !== id) ?? prev,
+    onSuccess: (result, id) => {
+      const allTickets = (qc.getQueryData<Ticket[]>(["tickets"]) ?? []).filter(
+        (t) => Number(t.id) !== Number(id),
       );
-      void qc.invalidateQueries({ queryKey: ["machines"] });
+      qc.setQueryData<Ticket[]>(["tickets"], allTickets);
+
+      qc.setQueryData<Machine[]>(["machines"], (prev) => {
+        const list = prev ?? [];
+        if (result?.machine) {
+          return list.map((m) =>
+            Number(m.id) === Number(result.machine!.id)
+              ? applyTicketsToMachine(result.machine!, allTickets)
+              : m,
+          );
+        }
+        return applyTicketsToMachines(list, allTickets);
+      });
+
+      setEditing((current) => {
+        if (!current) return current;
+        const base =
+          result?.machine && Number(result.machine.id) === Number(current.id)
+            ? {
+                ...current,
+                flags: result.machine.flags ?? current.flags,
+                problems: result.machine.problems ?? current.problems,
+              }
+            : current;
+        return applyTicketsToMachine(base, allTickets);
+      });
+
       toast.success("Ticket supprimé");
     },
     onError: (e) => toast.error(`Échec du ticket : ${(e as Error).message}`),

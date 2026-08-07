@@ -166,18 +166,38 @@ export function EditMachineDialog({
     const previous = draft[key] ?? [];
     set(key, items);
 
+    // Item supprimé → supprimer le ticket lié
+    for (const old of previous) {
+      const stillThere = items.some(
+        (item) =>
+          (old.ticketId != null && Number(item.ticketId) === Number(old.ticketId)) ||
+          (old.ticketId == null && item.text === old.text),
+      );
+      if (stillThere) continue;
+
+      const linked =
+        old.ticketId != null
+          ? tickets.find((t) => Number(t.id) === Number(old.ticketId))
+          : findLinkedTicket(tickets, category, old);
+
+      if (linked && onDeleteTicket) {
+        void onDeleteTicket(linked.id);
+      }
+    }
+
     if (!onUpdateTicket) return;
 
     for (const item of items) {
       const linked =
         findLinkedTicket(tickets, category, item) ??
         (item.ticketId != null
-          ? tickets.find((t) => t.id === item.ticketId)
+          ? tickets.find((t) => Number(t.id) === Number(item.ticketId))
           : undefined);
 
       const old = previous.find(
         (entry) =>
-          (item.ticketId != null && entry.ticketId === item.ticketId) ||
+          (item.ticketId != null &&
+            Number(entry.ticketId) === Number(item.ticketId)) ||
           entry.text === item.text,
       );
 
@@ -191,7 +211,7 @@ export function EditMachineDialog({
         void onUpdateTicket(linked.id, { status: "open" });
       }
 
-      if (item.text !== linked.comment && item.ticketId === linked.id) {
+      if (item.text !== linked.comment && Number(item.ticketId) === Number(linked.id)) {
         void onUpdateTicket(linked.id, { comment: item.text });
       }
     }
