@@ -181,8 +181,14 @@ export async function updateTicket(
   return { ticket: data as Ticket };
 }
 
-export async function deleteTicket(id: number): Promise<void> {
-  await apiFetch(`/api/tickets/${id}`, { method: "DELETE" });
+export async function deleteTicket(
+  id: number,
+): Promise<{ ok: boolean; machine?: Machine | null }> {
+  const data = (await apiFetch(`/api/tickets/${id}`, {
+    method: "DELETE",
+  })) as { ok: boolean; machine?: Machine | null };
+
+  return data ?? { ok: true };
 }
 
 export async function fetchUsers(): Promise<User[]> {

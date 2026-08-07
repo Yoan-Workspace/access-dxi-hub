@@ -36,6 +36,16 @@ export function applyTicketsToMachine(
       (t.category === "probleme" || t.category === "flag"),
   );
 
+  const existingTicketIds = new Set(related.map((t) => Number(t.id)));
+
+  // Supprime les items liés à un ticket qui n'existe plus
+  next.flags = next.flags.filter(
+    (item) => item.ticketId == null || existingTicketIds.has(Number(item.ticketId)),
+  );
+  next.problems = next.problems.filter(
+    (item) => item.ticketId == null || existingTicketIds.has(Number(item.ticketId)),
+  );
+
   for (const ticket of related) {
     const key = listKeyForCategory(ticket.category);
     if (!key) continue;
@@ -47,7 +57,7 @@ export function applyTicketsToMachine(
         (entry) =>
           entry.ticketId == null &&
           entry.text === ticket.comment &&
-          entry.completed !== true,
+          (ticket.status === "open" ? entry.completed !== true : true),
       );
 
     if (!item) {
