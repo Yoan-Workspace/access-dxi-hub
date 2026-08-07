@@ -19,12 +19,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 
-const categories: TicketCategory[] = [
-  "reparation",
-  "probleme",
-  "flag",
-  "non_classe",
-];
+const categories: TicketCategory[] = ["probleme", "flag"];
 
 function fmtDate(iso: string) {
   try {
@@ -193,7 +188,10 @@ function TicketRow({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {categories.map((c) => (
+                {(categories.includes(category)
+                  ? categories
+                  : [category, ...categories]
+                ).map((c) => (
                   <SelectItem key={c} value={c}>
                     {TICKET_CATEGORY_LABELS[c]}
                   </SelectItem>

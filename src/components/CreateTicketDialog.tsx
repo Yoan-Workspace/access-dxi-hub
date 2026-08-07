@@ -20,12 +20,7 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 
-const categories: TicketCategory[] = [
-  "reparation",
-  "probleme",
-  "flag",
-  "non_classe",
-];
+const categories: TicketCategory[] = ["probleme", "flag"];
 
 interface Props {
   open: boolean;
@@ -49,13 +44,13 @@ export function CreateTicketDialog({
   const [machineId, setMachineId] = useState<string>(
     defaultMachineId ? String(defaultMachineId) : "",
   );
-  const [category, setCategory] = useState<TicketCategory>("non_classe");
+  const [category, setCategory] = useState<TicketCategory>("probleme");
   const [comment, setComment] = useState("");
   const [saving, setSaving] = useState(false);
 
   const reset = () => {
     setMachineId(defaultMachineId ? String(defaultMachineId) : "");
-    setCategory("non_classe");
+    setCategory("probleme");
     setComment("");
   };
 
@@ -130,7 +125,7 @@ export function CreateTicketDialog({
             <Textarea
               value={comment}
               onChange={(e) => setComment(e.target.value)}
-              placeholder="Décrivez le problème, le flag ou la note…"
+              placeholder="Décrivez le problème ou le flag…"
               rows={4}
             />
           </div>
