@@ -284,6 +284,7 @@ function HomePage() {
       qc.setQueryData<Ticket[]>(["tickets"], (prev) =>
         prev ? [...prev, created] : [created],
       );
+      void qc.invalidateQueries({ queryKey: ["machines"] });
       toast.success("Ticket créé");
       setCreatingTicket(false);
     },

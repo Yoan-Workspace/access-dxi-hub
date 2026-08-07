@@ -412,29 +412,42 @@ app.get("/api/tickets", authMiddleware, (req, res) => {
 
 app.post("/api/tickets", authMiddleware, (req, res) => {
   const { machineId, category, comment } = req.body ?? {};
-  const allowedCategories = ["reparation", "probleme", "flag", "non_classe"];
+  const allowedCategories = ["probleme", "flag"];
 
   if (!machineId || !allowedCategories.includes(category) || !comment?.trim()) {
-    return res.status(400).json({ error: "Ticket invalide" });
+    return res.status(400).json({
+      error: "Ticket invalide (catégorie : problème ou flag)",
+    });
   }
 
   const data = ensureDataShape(readData());
-  if (!findMachine(data, machineId)) {
+  const machine = findMachine(data, machineId);
+  if (!machine) {
     return res.status(404).json({ error: "Machine introuvable" });
   }
 
   const now = new Date().toISOString().slice(0, 19);
+  const text = comment.trim();
   const ticket = {
     id: nextId(data.tickets),
     machineId: Number(machineId),
     category,
-    comment: comment.trim(),
+    comment: text,
     status: "open",
     createdBy: req.user.id,
     createdByName: req.user.displayName,
     createdAt: now,
     updatedAt: now,
   };
+
+  const todoItem = { text, completed: false };
+  if (category === "flag") {
+    if (!Array.isArray(machine.flags)) machine.flags = [];
+    machine.flags.push(todoItem);
+  } else {
+    if (!Array.isArray(machine.problems)) machine.problems = [];
+    machine.problems.push(todoItem);
+  }
 
   data.tickets.push(ticket);
   writeData(data);
@@ -454,11 +467,12 @@ app.put("/api/tickets/:id", authMiddleware, requireRole("admin", "technicien"), 
 
   const current = data.tickets[index];
   const { category, comment, status } = req.body ?? {};
-  const allowedCategories = ["reparation", "probleme", "flag", "non_classe"];
   const allowedStatus = ["open", "closed"];
 
-  if (category && !allowedCategories.includes(category)) {
-    return res.status(400).json({ error: "Catégorie invalide" });
+  if (category && !["probleme", "flag"].includes(category)) {
+    return res.status(400).json({
+      error: "Catégorie invalide (problème ou flag uniquement)",
+    });
   }
 
   if (status && !allowedStatus.includes(status)) {
