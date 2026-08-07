@@ -184,6 +184,64 @@ function findMachine(data, machineId) {
   return data.machines.find((m) => m.id === Number(machineId));
 }
 
+function machineListForCategory(machine, category) {
+  if (category === "flag") {
+    if (!Array.isArray(machine.flags)) machine.flags = [];
+    return machine.flags;
+  }
+  if (category === "probleme") {
+    if (!Array.isArray(machine.problems)) machine.problems = [];
+    return machine.problems;
+  }
+  return null;
+}
+
+function addTicketToMachineCategory(machine, category, text) {
+  const list = machineListForCategory(machine, category);
+  if (!list) return false;
+
+  const exists = list.some(
+    (item) => item.text === text && item.completed !== true,
+  );
+  if (exists) return false;
+
+  list.push({ text, completed: false });
+  return true;
+}
+
+function completeTicketOnMachine(machine, category, text) {
+  const list = machineListForCategory(machine, category);
+  if (!list) return false;
+
+  const item = list.find(
+    (entry) => entry.text === text && entry.completed !== true,
+  );
+  if (!item) return false;
+
+  item.completed = true;
+  item.completedDate = new Date().toLocaleDateString("fr-FR");
+  return true;
+}
+
+/** Réinjecte les tickets ouverts manquants dans flags / problems des machines. */
+function syncOpenTicketsIntoMachines(data) {
+  let changed = false;
+
+  for (const ticket of data.tickets) {
+    if (ticket.status !== "open") continue;
+    if (ticket.category !== "flag" && ticket.category !== "probleme") continue;
+
+    const machine = findMachine(data, ticket.machineId);
+    if (!machine) continue;
+
+    if (addTicketToMachineCategory(machine, ticket.category, ticket.comment)) {
+      changed = true;
+    }
+  }
+
+  return changed;
+}
+
 function setupDataWatch() {
   const dataDir = path.dirname(DATA_PATH);
   const fileName = path.basename(DATA_PATH);
@@ -440,20 +498,13 @@ app.post("/api/tickets", authMiddleware, (req, res) => {
     updatedAt: now,
   };
 
-  const todoItem = { text, completed: false };
-  if (category === "flag") {
-    if (!Array.isArray(machine.flags)) machine.flags = [];
-    machine.flags.push(todoItem);
-  } else {
-    if (!Array.isArray(machine.problems)) machine.problems = [];
-    machine.problems.push(todoItem);
-  }
+  addTicketToMachineCategory(machine, category, text);
 
   data.tickets.push(ticket);
   writeData(data);
   notifyClients();
 
-  res.status(201).json(ticket);
+  res.status(201).json({ ticket, machine });
 });
 
 app.put("/api/tickets/:id", authMiddleware, requireRole("admin", "technicien"), (req, res) => {
@@ -490,6 +541,11 @@ app.put("/api/tickets/:id", authMiddleware, requireRole("admin", "technicien"), 
   if (status === "closed" && current.status !== "closed") {
     updated.closedAt = updated.updatedAt;
     updated.closedBy = req.user.displayName;
+
+    const machine = findMachine(data, updated.machineId);
+    if (machine) {
+      completeTicketOnMachine(machine, updated.category, updated.comment);
+    }
   }
 
   if (status === "open") {
@@ -556,6 +612,12 @@ app.get("/api/events", (req, res) => {
 app.get("/api/machines", authMiddleware, (req, res) => {
   maybeResetMonthlyMaint();
   const data = ensureDataShape(readData());
+
+  if (syncOpenTicketsIntoMachines(data)) {
+    writeData(data);
+    notifyClients();
+  }
+
   res.json({ machines: data.machines });
 });
 

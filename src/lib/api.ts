@@ -146,11 +146,11 @@ export async function createTicket(input: {
   machineId: number;
   category: Ticket["category"];
   comment: string;
-}): Promise<Ticket> {
+}): Promise<{ ticket: Ticket; machine: Machine }> {
   return (await apiFetch("/api/tickets", {
     method: "POST",
     body: JSON.stringify(input),
-  })) as Ticket;
+  })) as { ticket: Ticket; machine: Machine };
 }
 
 export async function updateTicket(
