@@ -280,11 +280,16 @@ function HomePage() {
   const createTicketMutation = useMutation({
     mutationFn: createTicket,
     onMutate: markLocalWrite,
-    onSuccess: (created) => {
+    onSuccess: ({ ticket, machine }) => {
       qc.setQueryData<Ticket[]>(["tickets"], (prev) =>
-        prev ? [...prev, created] : [created],
+        prev ? [...prev, ticket] : [ticket],
       );
-      void qc.invalidateQueries({ queryKey: ["machines"] });
+      qc.setQueryData<Machine[]>(["machines"], (prev) =>
+        prev?.map((m) => (m.id === machine.id ? machine : m)) ?? [machine],
+      );
+      setEditing((current) =>
+        current && current.id === machine.id ? machine : current,
+      );
       toast.success("Ticket créé");
       setCreatingTicket(false);
     },
@@ -304,6 +309,7 @@ function HomePage() {
       qc.setQueryData<Ticket[]>(["tickets"], (prev) =>
         prev?.map((t) => (t.id === updated.id ? updated : t)) ?? prev,
       );
+      void qc.invalidateQueries({ queryKey: ["machines"] });
       toast.success("Ticket mis à jour");
     },
     onError: (e) => toast.error(`Échec du ticket : ${(e as Error).message}`),
@@ -316,6 +322,7 @@ function HomePage() {
       qc.setQueryData<Ticket[]>(["tickets"], (prev) =>
         prev?.filter((t) => t.id !== id) ?? prev,
       );
+      void qc.invalidateQueries({ queryKey: ["machines"] });
       toast.success("Ticket supprimé");
     },
     onError: (e) => toast.error(`Échec du ticket : ${(e as Error).message}`),
