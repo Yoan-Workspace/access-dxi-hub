@@ -168,11 +168,17 @@ export async function createTicket(input: {
 export async function updateTicket(
   id: number,
   input: Partial<Pick<Ticket, "category" | "comment" | "status">>,
-): Promise<Ticket> {
-  return (await apiFetch(`/api/tickets/${id}`, {
+): Promise<{ ticket: Ticket; machine?: Machine | null }> {
+  const data = (await apiFetch(`/api/tickets/${id}`, {
     method: "PUT",
     body: JSON.stringify(input),
-  })) as Ticket;
+  })) as Ticket | { ticket: Ticket; machine?: Machine | null };
+
+  if (data && typeof data === "object" && "ticket" in data && data.ticket) {
+    return { ticket: data.ticket, machine: data.machine };
+  }
+
+  return { ticket: data as Ticket };
 }
 
 export async function deleteTicket(id: number): Promise<void> {

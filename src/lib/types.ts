@@ -14,6 +14,8 @@ export interface TodoItem {
   text: string;
   completed: boolean;
   completedDate?: string;
+  /** Lien vers un ticket problème / flag */
+  ticketId?: number;
 }
 
 export interface PmRef {

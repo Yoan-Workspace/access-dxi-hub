@@ -196,30 +196,61 @@ function machineListForCategory(machine, category) {
   return null;
 }
 
-function addTicketToMachineCategory(machine, category, text) {
+function addTicketToMachineCategory(machine, category, text, ticketId) {
   const list = machineListForCategory(machine, category);
   if (!list) return false;
 
-  const exists = list.some(
+  if (ticketId != null) {
+    const byId = list.find((item) => item.ticketId === ticketId);
+    if (byId) {
+      byId.text = text;
+      byId.completed = false;
+      delete byId.completedDate;
+      return false;
+    }
+  }
+
+  const byText = list.find(
     (item) => item.text === text && item.completed !== true,
   );
-  if (exists) return false;
+  if (byText) {
+    if (ticketId != null) byText.ticketId = ticketId;
+    return Boolean(ticketId) && byText.ticketId === ticketId;
+  }
 
-  list.push({ text, completed: false });
+  list.push({
+    text,
+    completed: false,
+    ...(ticketId != null ? { ticketId } : {}),
+  });
   return true;
 }
 
-function completeTicketOnMachine(machine, category, text) {
+function completeTicketOnMachine(machine, category, text, ticketId) {
   const list = machineListForCategory(machine, category);
   if (!list) return false;
 
-  const item = list.find(
-    (entry) => entry.text === text && entry.completed !== true,
-  );
+  const item =
+    (ticketId != null && list.find((entry) => entry.ticketId === ticketId)) ||
+    list.find((entry) => entry.text === text && entry.completed !== true);
+
   if (!item) return false;
 
   item.completed = true;
   item.completedDate = new Date().toLocaleDateString("fr-FR");
+  if (ticketId != null) item.ticketId = ticketId;
+  return true;
+}
+
+function closeTicketById(data, ticketId, closedBy) {
+  const ticket = data.tickets.find((t) => t.id === Number(ticketId));
+  if (!ticket || ticket.status !== "open") return false;
+
+  const now = new Date().toISOString().slice(0, 19);
+  ticket.status = "closed";
+  ticket.closedAt = now;
+  ticket.closedBy = closedBy;
+  ticket.updatedAt = now;
   return true;
 }
 
@@ -249,16 +280,34 @@ function closeTicketsForCompletedItems(data, machine, closedBy) {
   let changed = false;
 
   for (const item of machine.problems ?? []) {
-    if (!item?.completed || !item.text) continue;
-    if (closeMatchingOpenTickets(data, machine.id, "probleme", item.text, closedBy)) {
-      changed = true;
+    if (!item?.completed) continue;
+    if (item.ticketId != null) {
+      if (closeTicketById(data, item.ticketId, closedBy)) changed = true;
+    } else if (item.text) {
+      if (
+        closeMatchingOpenTickets(
+          data,
+          machine.id,
+          "probleme",
+          item.text,
+          closedBy,
+        )
+      ) {
+        changed = true;
+      }
     }
   }
 
   for (const item of machine.flags ?? []) {
-    if (!item?.completed || !item.text) continue;
-    if (closeMatchingOpenTickets(data, machine.id, "flag", item.text, closedBy)) {
-      changed = true;
+    if (!item?.completed) continue;
+    if (item.ticketId != null) {
+      if (closeTicketById(data, item.ticketId, closedBy)) changed = true;
+    } else if (item.text) {
+      if (
+        closeMatchingOpenTickets(data, machine.id, "flag", item.text, closedBy)
+      ) {
+        changed = true;
+      }
     }
   }
 
@@ -270,13 +319,30 @@ function syncOpenTicketsIntoMachines(data) {
   let changed = false;
 
   for (const ticket of data.tickets) {
-    if (ticket.status !== "open") continue;
     if (ticket.category !== "flag" && ticket.category !== "probleme") continue;
 
     const machine = findMachine(data, ticket.machineId);
     if (!machine) continue;
 
-    if (addTicketToMachineCategory(machine, ticket.category, ticket.comment)) {
+    if (ticket.status === "open") {
+      if (
+        addTicketToMachineCategory(
+          machine,
+          ticket.category,
+          ticket.comment,
+          ticket.id,
+        )
+      ) {
+        changed = true;
+      }
+    } else if (
+      completeTicketOnMachine(
+        machine,
+        ticket.category,
+        ticket.comment,
+        ticket.id,
+      )
+    ) {
       changed = true;
     }
   }
@@ -521,11 +587,14 @@ app.post("/api/tickets", authMiddleware, (req, res) => {
   }
 
   const data = ensureDataShape(readData());
-  const machine = findMachine(data, machineId);
-  if (!machine) {
+  const machineIndex = data.machines.findIndex(
+    (m) => Number(m.id) === Number(machineId),
+  );
+  if (machineIndex === -1) {
     return res.status(404).json({ error: "Machine introuvable" });
   }
 
+  const machine = data.machines[machineIndex];
   const now = new Date().toISOString().slice(0, 19);
   const text = comment.trim();
   const ticket = {
@@ -540,8 +609,8 @@ app.post("/api/tickets", authMiddleware, (req, res) => {
     updatedAt: now,
   };
 
-  addTicketToMachineCategory(machine, category, text);
-
+  addTicketToMachineCategory(machine, category, text, ticket.id);
+  data.machines[machineIndex] = machine;
   data.tickets.push(ticket);
   writeData(data);
   notifyClients();
@@ -583,11 +652,6 @@ app.put("/api/tickets/:id", authMiddleware, requireRole("admin", "technicien"), 
   if (status === "closed" && current.status !== "closed") {
     updated.closedAt = updated.updatedAt;
     updated.closedBy = req.user.displayName;
-
-    const machine = findMachine(data, updated.machineId);
-    if (machine) {
-      completeTicketOnMachine(machine, updated.category, updated.comment);
-    }
   }
 
   if (status === "open") {
@@ -596,10 +660,40 @@ app.put("/api/tickets/:id", authMiddleware, requireRole("admin", "technicien"), 
   }
 
   data.tickets[index] = updated;
+
+  const machine = findMachine(data, updated.machineId);
+  if (machine) {
+    // Retirer l'ancien lien si la catégorie change
+    if (current.category !== updated.category) {
+      for (const key of ["flags", "problems"]) {
+        const list = machine[key];
+        if (!Array.isArray(list)) continue;
+        const linked = list.find((item) => item.ticketId === updated.id);
+        if (linked) delete linked.ticketId;
+      }
+    }
+
+    if (updated.status === "open") {
+      addTicketToMachineCategory(
+        machine,
+        updated.category,
+        updated.comment,
+        updated.id,
+      );
+    } else {
+      completeTicketOnMachine(
+        machine,
+        updated.category,
+        updated.comment,
+        updated.id,
+      );
+    }
+  }
+
   writeData(data);
   notifyClients();
 
-  res.json(updated);
+  res.json({ ticket: updated, machine: machine ?? null });
 });
 
 app.delete(
