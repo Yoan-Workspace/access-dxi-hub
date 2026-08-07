@@ -223,6 +223,48 @@ function completeTicketOnMachine(machine, category, text) {
   return true;
 }
 
+function closeMatchingOpenTickets(data, machineId, category, text, closedBy) {
+  const now = new Date().toISOString().slice(0, 19);
+  let changed = false;
+
+  for (const ticket of data.tickets) {
+    if (
+      ticket.machineId === Number(machineId) &&
+      ticket.status === "open" &&
+      ticket.category === category &&
+      ticket.comment === text
+    ) {
+      ticket.status = "closed";
+      ticket.closedAt = now;
+      ticket.closedBy = closedBy;
+      ticket.updatedAt = now;
+      changed = true;
+    }
+  }
+
+  return changed;
+}
+
+function closeTicketsForCompletedItems(data, machine, closedBy) {
+  let changed = false;
+
+  for (const item of machine.problems ?? []) {
+    if (!item?.completed || !item.text) continue;
+    if (closeMatchingOpenTickets(data, machine.id, "probleme", item.text, closedBy)) {
+      changed = true;
+    }
+  }
+
+  for (const item of machine.flags ?? []) {
+    if (!item?.completed || !item.text) continue;
+    if (closeMatchingOpenTickets(data, machine.id, "flag", item.text, closedBy)) {
+      changed = true;
+    }
+  }
+
+  return changed;
+}
+
 /** Réinjecte les tickets ouverts manquants dans flags / problems des machines. */
 function syncOpenTicketsIntoMachines(data) {
   let changed = false;
@@ -634,11 +676,13 @@ app.put(
       return res.status(404).json({ error: "Machine introuvable" });
     }
 
-    data.machines[index] = req.body;
+    const machine = { ...req.body, id };
+    data.machines[index] = machine;
+    closeTicketsForCompletedItems(data, machine, req.user.displayName);
     writeData(data);
     notifyClients();
 
-    res.json(data.machines[index]);
+    res.json(machine);
   },
 );
 
