@@ -404,9 +404,132 @@ function syncOpenTicketsIntoMachines(data) {
   return changed;
 }
 
+function detectChanges(oldData, newData) {
+  const events = [];
+
+  if (!oldData) return events;
+
+  //
+  // Tickets créés
+  //
+  const oldTicketIds = new Set(
+    (oldData.tickets || []).map((t) => t.id),
+  );
+
+  for (const ticket of newData.tickets || []) {
+    if (!oldTicketIds.has(ticket.id)) {
+      events.push({
+        type: "ticket-created",
+        ticketId: ticket.id,
+        machineId: ticket.machineId,
+        category: ticket.category,
+        comment: ticket.comment,
+        createdBy: ticket.createdByName,
+      });
+    }
+  }
+
+  //
+  // Tickets clôturés
+  //
+  const oldTickets = new Map(
+    (oldData.tickets || []).map((t) => [t.id, t]),
+  );
+
+  for (const ticket of newData.tickets || []) {
+    const oldTicket = oldTickets.get(ticket.id);
+
+    if (
+      oldTicket &&
+      oldTicket.status === "open" &&
+      ticket.status === "closed"
+    ) {
+      events.push({
+        type: "ticket-closed",
+        ticketId: ticket.id,
+        machineId: ticket.machineId,
+        closedBy: ticket.closedBy,
+      });
+    }
+  }
+
+  //
+  // Changements machines
+  //
+  const oldMachines = new Map(
+    (oldData.machines || []).map((m) => [m.id, m]),
+  );
+
+  for (const machine of newData.machines || []) {
+    const oldMachine = oldMachines.get(machine.id);
+
+    if (!oldMachine) continue;
+
+    //
+    // Status machine
+    //
+    if (oldMachine.status !== machine.status) {
+      events.push({
+        type: "machine-status-changed",
+        machine: machine.name,
+        oldStatus: oldMachine.status,
+        newStatus: machine.status,
+      });
+    }
+
+    //
+    // ASD
+    //
+    if (oldMachine.asdStatus !== machine.asdStatus) {
+      events.push({
+        type: "asd-changed",
+        machine: machine.name,
+        oldStatus: oldMachine.asdStatus,
+        newStatus: machine.asdStatus,
+      });
+    }
+
+    //
+    // Nouveaux flags
+    //
+    const oldFlags = new Set(
+      (oldMachine.flags || []).map((f) => f.text),
+    );
+
+    for (const flag of machine.flags || []) {
+      if (!oldFlags.has(flag.text)) {
+        events.push({
+          type: "flag-added",
+          machine: machine.name,
+          text: flag.text,
+        });
+      }
+    }
+
+    //
+    // Nouveaux problèmes
+    //
+    const oldProblems = new Set(
+      (oldMachine.problems || []).map((p) => p.text),
+    );
+
+    for (const problem of machine.problems || []) {
+      if (!oldProblems.has(problem.text)) {
+        events.push({
+          type: "problem-added",
+          machine: machine.name,
+          text: problem.text,
+        });
+      }
+    }
+  }
+
+  return events;
+}
+
 function setupDataWatch() {
   if (!fs.existsSync(DATA_PATH)) {
-    console.warn(`${DATA_PATH} introuvable — surveillance désactivée`);
+    console.warn(`${DATA_PATH} introuvable`);
     return;
   }
 
