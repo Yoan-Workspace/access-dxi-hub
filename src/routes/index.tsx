@@ -164,7 +164,8 @@ function HomePage() {
   const [users, setUsers] = useState<User[]>([]);
 
   const dialogOpenRef = useRef(false);
-  const skipSseRef = useRef(0);
+  const skipSseUntilRef = useRef(0);
+  const lastSseToastRef = useRef(0);
   const readOnly = isReadOnlyUser(user);
 
   const ticketsByMachine = useMemo(() => {
@@ -213,29 +214,24 @@ function HomePage() {
     const source = new EventSource(
       `${apiBase}/api/events${token ? `?token=${encodeURIComponent(token)}` : ""}`,
     );
-    let lastSseAt = 0;
     source.onmessage = () => {
-      if (skipSseRef.current > 0) {
-        skipSseRef.current -= 1;
-        return;
-      }
-
+      if (Date.now() < skipSseUntilRef.current) return;
       if (dialogOpenRef.current) return;
 
-      const now = Date.now();
-      if (now - lastSseAt < 2500) return;
-      lastSseAt = now;
-
-      toast.info("Base de données mise à jour");
       void qc.invalidateQueries({ queryKey: ["machines"] });
       void qc.invalidateQueries({ queryKey: ["tickets"] });
+
+      const now = Date.now();
+      if (now - lastSseToastRef.current < 15000) return;
+      lastSseToastRef.current = now;
+      toast.info("Base de données mise à jour");
     };
 
     return () => source.close();
   }, [qc, user]);
 
   const markLocalWrite = () => {
-    skipSseRef.current += 1;
+    skipSseUntilRef.current = Date.now() + 4000;
   };
 
   const closeEditDialog = () => {

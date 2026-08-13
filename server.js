@@ -19,15 +19,30 @@ app.use(express.json({ limit: "2mb" }));
 const clients = [];
 const sessions = new Map();
 let ignoreWatchUntil = 0;
+let lastDataHash = "";
+let notifyTimer = null;
 
 function readData() {
   return JSON.parse(fs.readFileSync(DATA_PATH, "utf8"));
 }
 
+function hashBuffer(buf) {
+  return crypto.createHash("sha1").update(buf).digest("hex");
+}
+
+function currentDataHash() {
+  try {
+    return hashBuffer(fs.readFileSync(DATA_PATH));
+  } catch {
+    return "";
+  }
+}
+
 function writeData(data) {
-  // Ignore les événements fs.watch déclenchés par nos propres écritures
-  ignoreWatchUntil = Date.now() + 750;
-  fs.writeFileSync(DATA_PATH, JSON.stringify(data, null, 2));
+  const json = JSON.stringify(data, null, 2);
+  ignoreWatchUntil = Date.now() + 2500;
+  fs.writeFileSync(DATA_PATH, json);
+  lastDataHash = hashBuffer(json);
 }
 
 function ensureDataShape(data) {
@@ -169,11 +184,13 @@ function scheduleMonthlyMaintCheck() {
   }, 60 * 60 * 1000);
 }
 
-function notifyClients(event = { type: "data-updated" }) {
-clients.forEach((client) => {
-client.write(`data: ${JSON.stringify(event)}\n\n`);
-});
-
+function notifyClients() {
+  if (notifyTimer) return;
+  notifyTimer = setTimeout(() => {
+    notifyTimer = null;
+    const payload = `data: ${JSON.stringify({ type: "data-updated" })}\n\n`;
+    clients.forEach((client) => client.write(payload));
+  }, 400);
 }
 
 function nextId(items) {
@@ -511,88 +528,24 @@ function detectChanges(oldData, newData) {
 }
 
 function setupDataWatch() {
-  const dataDir = path.dirname(DATA_PATH);
-  const fileName = path.basename(DATA_PATH);
-
-  const onChange = () => {
-    if (Date.now() < ignoreWatchUntil) return;
-    console.log("data.json modifié");
-    notifyClients();
-  };
-
-  try {
-    previousData = readData();
-  } catch {
-    previousData = null;
-  }
-
-  const onChange = () => {
-    clearTimeout(debounceTimer);
-
-    debounceTimer = setTimeout(() => {
-      try {
-        const newData = readData();
-
-        const events = detectChanges(
-          previousData,
-          newData,
-        );
-
-        previousData = JSON.parse(
-          JSON.stringify(newData),
-        );
-
-        if (events.length === 0) {
-          notifyClients({
-            type: "data-updated",
-          });
-          return;
-        }
-
-        for (const event of events) {
-          console.log(
-            "[EVENT]",
-            JSON.stringify(event),
-          );
-
-          notifyClients(event);
-        }
-      } catch (err) {
-        console.error(
-          "Erreur analyse modification:",
-          err.message,
-        );
-      }
-    }, 500);
-  };
-
   if (!fs.existsSync(DATA_PATH)) {
     console.warn(`${DATA_PATH} introuvable`);
     return;
   }
 
-  try {
-    const watcher = fs.watch(
-      dataDir,
-      (event, name) => {
-        if (!name || name === fileName) {
-          onChange();
-        }
-      },
-    );
+  lastDataHash = currentDataHash();
 
-    watcher.on("error", (err) => {
-      console.error(
-        "Erreur watcher:",
-        err.message,
-      );
-    });
-  } catch (err) {
-    console.error(
-      "fs.watch indisponible:",
-      err.message,
-    );
-  }
+  // Polling sur le contenu réel uniquement.
+  // fs.watch sur le dossier data/ envoie trop d'événements (Box/OneDrive, indexation…)
+  // et relançait le toast « Base de données mise à jour » en boucle.
+  setInterval(() => {
+    if (Date.now() < ignoreWatchUntil) return;
+    const hash = currentDataHash();
+    if (!hash || hash === lastDataHash) return;
+    lastDataHash = hash;
+    console.log("data.json modifié (changement de contenu)");
+    notifyClients();
+  }, 4000);
 }
 
 //
@@ -953,14 +906,7 @@ app.get("/api/events", (req, res) => {
 });
 
 app.get("/api/machines", authMiddleware, (req, res) => {
-  maybeResetMonthlyMaint();
   const data = ensureDataShape(readData());
-
-  if (syncOpenTicketsIntoMachines(data)) {
-    // Réparation silencieuse : ne pas notifier, sinon GET → write → SSE → GET en boucle
-    writeData(data);
-  }
-
   res.json({ machines: data.machines });
 });
 
