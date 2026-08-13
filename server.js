@@ -18,31 +18,14 @@ app.use(express.json({ limit: "2mb" }));
 
 const clients = [];
 const sessions = new Map();
-let ignoreWatchUntil = 0;
-let lastDataHash = "";
-let notifyTimer = null;
+let lastNotifyAt = 0;
 
 function readData() {
   return JSON.parse(fs.readFileSync(DATA_PATH, "utf8"));
 }
 
-function hashBuffer(buf) {
-  return crypto.createHash("sha1").update(buf).digest("hex");
-}
-
-function currentDataHash() {
-  try {
-    return hashBuffer(fs.readFileSync(DATA_PATH));
-  } catch {
-    return "";
-  }
-}
-
 function writeData(data) {
-  const json = JSON.stringify(data, null, 2);
-  ignoreWatchUntil = Date.now() + 2500;
-  fs.writeFileSync(DATA_PATH, json);
-  lastDataHash = hashBuffer(json);
+  fs.writeFileSync(DATA_PATH, JSON.stringify(data, null, 2));
 }
 
 function ensureDataShape(data) {
@@ -185,12 +168,18 @@ function scheduleMonthlyMaintCheck() {
 }
 
 function notifyClients() {
-  if (notifyTimer) return;
-  notifyTimer = setTimeout(() => {
-    notifyTimer = null;
-    const payload = `data: ${JSON.stringify({ type: "data-updated" })}\n\n`;
-    clients.forEach((client) => client.write(payload));
-  }, 400);
+  const now = Date.now();
+  if (now - lastNotifyAt < 2000) return;
+  lastNotifyAt = now;
+
+  const payload = `data: ${JSON.stringify({ type: "data-updated" })}\n\n`;
+  for (let i = clients.length - 1; i >= 0; i--) {
+    try {
+      clients[i].write(payload);
+    } catch {
+      clients.splice(i, 1);
+    }
+  }
 }
 
 function nextId(items) {
@@ -528,24 +517,8 @@ function detectChanges(oldData, newData) {
 }
 
 function setupDataWatch() {
-  if (!fs.existsSync(DATA_PATH)) {
-    console.warn(`${DATA_PATH} introuvable`);
-    return;
-  }
-
-  lastDataHash = currentDataHash();
-
-  // Polling sur le contenu réel uniquement.
-  // fs.watch sur le dossier data/ envoie trop d'événements (Box/OneDrive, indexation…)
-  // et relançait le toast « Base de données mise à jour » en boucle.
-  setInterval(() => {
-    if (Date.now() < ignoreWatchUntil) return;
-    const hash = currentDataHash();
-    if (!hash || hash === lastDataHash) return;
-    lastDataHash = hash;
-    console.log("data.json modifié (changement de contenu)");
-    notifyClients();
-  }, 4000);
+  // Les écritures passent déjà par notifyClients().
+  // Ne pas surveiller data.json : Box/antivirus relance sinon le SSE en boucle.
 }
 
 //
@@ -896,10 +869,21 @@ app.get("/api/events", (req, res) => {
   res.setHeader("Content-Type", "text/event-stream");
   res.setHeader("Cache-Control", "no-cache");
   res.setHeader("Connection", "keep-alive");
+  res.flushHeaders?.();
+  res.write(": connected\n\n");
 
-  clients.push(res);
+  if (!clients.includes(res)) clients.push(res);
+
+  const keepAlive = setInterval(() => {
+    try {
+      res.write(": ping\n\n");
+    } catch {
+      clearInterval(keepAlive);
+    }
+  }, 25000);
 
   req.on("close", () => {
+    clearInterval(keepAlive);
     const index = clients.indexOf(res);
     if (index !== -1) clients.splice(index, 1);
   });

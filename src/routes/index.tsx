@@ -167,6 +167,7 @@ function HomePage() {
   const dialogOpenRef = useRef(false);
   const skipSseUntilRef = useRef(0);
   const lastSseToastRef = useRef(0);
+  const lastSseRefetchRef = useRef(0);
   const readOnly = isReadOnlyUser(user);
 
   const ticketsByMachine = useMemo(() => {
@@ -209,30 +210,30 @@ function HomePage() {
     if (!API_CONFIGURED || !user) return;
 
     const apiBase = getApiBase();
-    if (!API_CONFIGURED) return;
-
     const token = getStoredToken();
     const source = new EventSource(
       `${apiBase}/api/events${token ? `?token=${encodeURIComponent(token)}` : ""}`,
     );
+
     source.onmessage = () => {
       if (Date.now() < skipSseUntilRef.current) return;
       if (dialogOpenRef.current) return;
+      if (Date.now() - lastSseRefetchRef.current < 8000) return;
+      lastSseRefetchRef.current = Date.now();
 
       void qc.invalidateQueries({ queryKey: ["machines"] });
       void qc.invalidateQueries({ queryKey: ["tickets"] });
 
-      const now = Date.now();
-      if (now - lastSseToastRef.current < 15000) return;
-      lastSseToastRef.current = now;
+      if (Date.now() - lastSseToastRef.current < 30000) return;
+      lastSseToastRef.current = Date.now();
       toast.info("Base de données mise à jour");
     };
 
     return () => source.close();
-  }, [qc, user]);
+  }, [qc, user?.id]);
 
   const markLocalWrite = () => {
-    skipSseUntilRef.current = Date.now() + 4000;
+    skipSseUntilRef.current = Date.now() + 8000;
   };
 
   const closeEditDialog = () => {
