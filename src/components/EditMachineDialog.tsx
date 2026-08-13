@@ -61,6 +61,7 @@ interface Props {
     category: Extract<TicketCategory, "probleme" | "flag">;
     comment: string;
   }) => Promise<{ ticket: Ticket; machine?: Machine }>;
+  onOpenCreateTicket?: () => void;
 }
 
 const months = [
@@ -115,6 +116,7 @@ export function EditMachineDialog({
   onUpdateTicket,
   onDeleteTicket,
   onCreateTicket,
+  onOpenCreateTicket,
 }: Props) {
   const [draft, setDraft] = useState<Machine | null>(machine);
   const [tab, setTab] = useState<EditMachineTab>(initialTab);
@@ -564,7 +566,15 @@ const remove = async () => {
                 readOnly={readOnly}
               />
             </TabsContent>
-            <TabsContent value="tickets" className="mt-0">
+            <TabsContent value="tickets" className="mt-0 space-y-4">
+              {onOpenCreateTicket && (
+                <div className="flex justify-end">
+                  <Button type="button" onClick={onOpenCreateTicket}>
+                    <TicketIcon className="h-4 w-4" />
+                    Ouvrir un ticket
+                  </Button>
+                </div>
+              )}
               {onUpdateTicket && onDeleteTicket ? (
                 <MachineTicketsPanel
                   tickets={tickets}

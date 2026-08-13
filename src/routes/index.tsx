@@ -159,6 +159,7 @@ function HomePage() {
   const [editTab, setEditTab] = useState<EditMachineTab>("general");
   const [adding, setAdding] = useState(false);
   const [creatingTicket, setCreatingTicket] = useState(false);
+  const [ticketMachineId, setTicketMachineId] = useState<number | undefined>();
   const [managingUsers, setManagingUsers] = useState(false);
   const [changePasswordOpen, setChangePasswordOpen] = useState(false);
   const [users, setUsers] = useState<User[]>([]);
@@ -556,7 +557,13 @@ function HomePage() {
               </span>
             )}
             {canCreateTicket(user?.role) && API_CONFIGURED && (
-              <Button variant="outline" onClick={() => setCreatingTicket(true)}>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setTicketMachineId(undefined);
+                  setCreatingTicket(true);
+                }}
+              >
                 <TicketIcon className="h-4 w-4" />
                 <span className="hidden sm:inline">Ouvrir un ticket</span>
               </Button>
@@ -691,6 +698,14 @@ function HomePage() {
             ? async (input) => createTicketMutation.mutateAsync(input)
             : undefined
         }
+        onOpenCreateTicket={
+          API_CONFIGURED && canCreateTicket(user?.role)
+            ? () => {
+                if (editing) setTicketMachineId(editing.id);
+                setCreatingTicket(true);
+              }
+            : undefined
+        }
       />
 
       {canCreateMachine(user?.role) && (
@@ -706,7 +721,12 @@ function HomePage() {
       <CreateTicketDialog
         open={creatingTicket}
         machines={machines}
-        onOpenChange={setCreatingTicket}
+        defaultMachineId={ticketMachineId}
+        lockMachine={ticketMachineId != null}
+        onOpenChange={(open) => {
+          setCreatingTicket(open);
+          if (!open) setTicketMachineId(undefined);
+        }}
         onCreate={async (input) => {
           await createTicketMutation.mutateAsync(input);
         }}
