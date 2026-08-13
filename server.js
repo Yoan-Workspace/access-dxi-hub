@@ -19,15 +19,30 @@ app.use(express.json({ limit: "2mb" }));
 const clients = [];
 const sessions = new Map();
 let ignoreWatchUntil = 0;
+let lastDataHash = "";
+let notifyTimer = null;
 
 function readData() {
   return JSON.parse(fs.readFileSync(DATA_PATH, "utf8"));
 }
 
+function hashBuffer(buf) {
+  return crypto.createHash("sha1").update(buf).digest("hex");
+}
+
+function currentDataHash() {
+  try {
+    return hashBuffer(fs.readFileSync(DATA_PATH));
+  } catch {
+    return "";
+  }
+}
+
 function writeData(data) {
-  // Ignore les événements fs.watch déclenchés par nos propres écritures
-  ignoreWatchUntil = Date.now() + 750;
-  fs.writeFileSync(DATA_PATH, JSON.stringify(data, null, 2));
+  const json = JSON.stringify(data, null, 2);
+  ignoreWatchUntil = Date.now() + 2500;
+  fs.writeFileSync(DATA_PATH, json);
+  lastDataHash = hashBuffer(json);
 }
 
 function ensureDataShape(data) {
@@ -170,13 +185,12 @@ function scheduleMonthlyMaintCheck() {
 }
 
 function notifyClients() {
-  clients.forEach((client) => {
-    client.write(
-      `data: ${JSON.stringify({
-        type: "data-updated",
-      })}\n\n`,
-    );
-  });
+  if (notifyTimer) return;
+  notifyTimer = setTimeout(() => {
+    notifyTimer = null;
+    const payload = `data: ${JSON.stringify({ type: "data-updated" })}\n\n`;
+    clients.forEach((client) => client.write(payload));
+  }, 400);
 }
 
 function nextId(items) {
@@ -391,58 +405,24 @@ function syncOpenTicketsIntoMachines(data) {
 }
 
 function setupDataWatch() {
-  const dataDir = path.dirname(DATA_PATH);
-  const fileName = path.basename(DATA_PATH);
-
-  const onChange = () => {
-    if (Date.now() < ignoreWatchUntil) return;
-    console.log("data.json modifié");
-    notifyClients();
-  };
-
-  const startPolling = () => {
-    console.warn("Surveillance par polling (fs.watch indisponible sur ce système)");
-
-    let lastMtime = 0;
-    try {
-      lastMtime = fs.statSync(DATA_PATH).mtimeMs;
-    } catch {
-      console.warn(`${DATA_PATH} introuvable — surveillance désactivée`);
-      return;
-    }
-
-    setInterval(() => {
-      try {
-        const mtime = fs.statSync(DATA_PATH).mtimeMs;
-        if (mtime !== lastMtime) {
-          lastMtime = mtime;
-          onChange();
-        }
-      } catch {
-        /* fichier temporairement inaccessible */
-      }
-    }, 2000);
-  };
-
   if (!fs.existsSync(DATA_PATH)) {
     console.warn(`${DATA_PATH} introuvable — surveillance désactivée`);
     return;
   }
 
-  try {
-    const watcher = fs.watch(dataDir, (event, name) => {
-      if (!name || name === fileName) onChange();
-    });
+  lastDataHash = currentDataHash();
 
-    watcher.on("error", (err) => {
-      console.warn("fs.watch interrompu:", err.message);
-      watcher.close();
-      startPolling();
-    });
-  } catch (err) {
-    console.warn("fs.watch indisponible:", err.message);
-    startPolling();
-  }
+  // Polling sur le contenu réel uniquement.
+  // fs.watch sur le dossier data/ envoie trop d'événements (Box/OneDrive, indexation…)
+  // et relançait le toast « Base de données mise à jour » en boucle.
+  setInterval(() => {
+    if (Date.now() < ignoreWatchUntil) return;
+    const hash = currentDataHash();
+    if (!hash || hash === lastDataHash) return;
+    lastDataHash = hash;
+    console.log("data.json modifié (changement de contenu)");
+    notifyClients();
+  }, 4000);
 }
 
 //
@@ -803,14 +783,7 @@ app.get("/api/events", (req, res) => {
 });
 
 app.get("/api/machines", authMiddleware, (req, res) => {
-  maybeResetMonthlyMaint();
   const data = ensureDataShape(readData());
-
-  if (syncOpenTicketsIntoMachines(data)) {
-    // Réparation silencieuse : ne pas notifier, sinon GET → write → SSE → GET en boucle
-    writeData(data);
-  }
-
   res.json({ machines: data.machines });
 });
 
