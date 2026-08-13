@@ -213,6 +213,7 @@ function HomePage() {
     const source = new EventSource(
       `${apiBase}/api/events${token ? `?token=${encodeURIComponent(token)}` : ""}`,
     );
+    let lastSseAt = 0;
     source.onmessage = () => {
       if (skipSseRef.current > 0) {
         skipSseRef.current -= 1;
@@ -220,6 +221,10 @@ function HomePage() {
       }
 
       if (dialogOpenRef.current) return;
+
+      const now = Date.now();
+      if (now - lastSseAt < 2500) return;
+      lastSseAt = now;
 
       toast.info("Base de données mise à jour");
       void qc.invalidateQueries({ queryKey: ["machines"] });

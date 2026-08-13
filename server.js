@@ -18,13 +18,15 @@ app.use(express.json({ limit: "2mb" }));
 
 const clients = [];
 const sessions = new Map();
-let previousData = null;
+let ignoreWatchUntil = 0;
 
 function readData() {
   return JSON.parse(fs.readFileSync(DATA_PATH, "utf8"));
 }
 
 function writeData(data) {
+  // Ignore les événements fs.watch déclenchés par nos propres écritures
+  ignoreWatchUntil = Date.now() + 750;
   fs.writeFileSync(DATA_PATH, JSON.stringify(data, null, 2));
 }
 
@@ -199,12 +201,19 @@ function addTicketToMachineCategory(machine, category, text, ticketId) {
   if (!list) return false;
 
   if (ticketId != null) {
-    const byId = list.find((item) => item.ticketId === ticketId);
+    const byId = list.find((item) => Number(item.ticketId) === Number(ticketId));
     if (byId) {
-      byId.text = text;
-      byId.completed = false;
-      delete byId.completedDate;
-      return false;
+      let changed = false;
+      if (byId.text !== text) {
+        byId.text = text;
+        changed = true;
+      }
+      if (byId.completed) {
+        byId.completed = false;
+        delete byId.completedDate;
+        changed = true;
+      }
+      return changed;
     }
   }
 
@@ -212,8 +221,11 @@ function addTicketToMachineCategory(machine, category, text, ticketId) {
     (item) => item.text === text && item.completed !== true,
   );
   if (byText) {
-    if (ticketId != null) byText.ticketId = ticketId;
-    return Boolean(ticketId) && byText.ticketId === ticketId;
+    if (ticketId != null && Number(byText.ticketId) !== Number(ticketId)) {
+      byText.ticketId = ticketId;
+      return true;
+    }
+    return false;
   }
 
   list.push({
@@ -235,10 +247,17 @@ function completeTicketOnMachine(machine, category, text, ticketId) {
 
   if (!item) return false;
 
-  item.completed = true;
-  item.completedDate = new Date().toLocaleDateString("fr-FR");
-  if (ticketId != null) item.ticketId = ticketId;
-  return true;
+  let changed = false;
+  if (!item.completed) {
+    item.completed = true;
+    item.completedDate = new Date().toLocaleDateString("fr-FR");
+    changed = true;
+  }
+  if (ticketId != null && Number(item.ticketId) !== Number(ticketId)) {
+    item.ticketId = ticketId;
+    changed = true;
+  }
+  return changed;
 }
 
 function removeTicketFromMachine(machine, ticketId) {
@@ -495,7 +514,11 @@ function setupDataWatch() {
   const dataDir = path.dirname(DATA_PATH);
   const fileName = path.basename(DATA_PATH);
 
-  let debounceTimer = null;
+  const onChange = () => {
+    if (Date.now() < ignoreWatchUntil) return;
+    console.log("data.json modifié");
+    notifyClients();
+  };
 
   try {
     previousData = readData();
@@ -934,8 +957,8 @@ app.get("/api/machines", authMiddleware, (req, res) => {
   const data = ensureDataShape(readData());
 
   if (syncOpenTicketsIntoMachines(data)) {
+    // Réparation silencieuse : ne pas notifier, sinon GET → write → SSE → GET en boucle
     writeData(data);
-    notifyClients();
   }
 
   res.json({ machines: data.machines });
