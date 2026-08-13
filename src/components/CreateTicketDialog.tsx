@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Loader2 } from "lucide-react";
 import type { Machine, TicketCategory } from "@/lib/types";
 import { TICKET_CATEGORY_LABELS } from "@/lib/permissions";
@@ -26,6 +26,7 @@ interface Props {
   open: boolean;
   machines: Machine[];
   defaultMachineId?: number;
+  lockMachine?: boolean;
   onOpenChange: (open: boolean) => void;
   onCreate: (input: {
     machineId: number;
@@ -38,6 +39,7 @@ export function CreateTicketDialog({
   open,
   machines,
   defaultMachineId,
+  lockMachine = false,
   onOpenChange,
   onCreate,
 }: Props) {
@@ -47,6 +49,13 @@ export function CreateTicketDialog({
   const [category, setCategory] = useState<TicketCategory>("probleme");
   const [comment, setComment] = useState("");
   const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+    setMachineId(defaultMachineId ? String(defaultMachineId) : "");
+    setCategory("probleme");
+    setComment("");
+  }, [open, defaultMachineId]);
 
   const reset = () => {
     setMachineId(defaultMachineId ? String(defaultMachineId) : "");
@@ -87,7 +96,11 @@ export function CreateTicketDialog({
         <div className="space-y-4">
           <div className="space-y-1.5">
             <Label>Machine</Label>
-            <Select value={machineId} onValueChange={setMachineId}>
+            <Select
+              value={machineId}
+              onValueChange={setMachineId}
+              disabled={lockMachine}
+            >
               <SelectTrigger>
                 <SelectValue placeholder="Sélectionner une machine" />
               </SelectTrigger>
