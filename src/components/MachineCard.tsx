@@ -192,8 +192,7 @@ export function MachineCard({
           <div className="flex flex-wrap items-center gap-2">
             <span
               className={cn(
-                "inline-flex h-5 items-center rounded-full px-2 text-[10px] font-semibold tracking-wider uppercase",
-                kind === "MP" ? "bg-mp/10 text-mp" : "bg-access/10 text-access",
+                "inline-flex h-5 items-center rounded-full px-2 text-[10px] font-semibold tracking-wider uppercase bg-mp/10 text-mp",
               )}
             >
               {kind === "MP" ? "DXI 9000" : "Access 2"}
