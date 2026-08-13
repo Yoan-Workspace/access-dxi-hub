@@ -169,14 +169,11 @@ function scheduleMonthlyMaintCheck() {
   }, 60 * 60 * 1000);
 }
 
-function notifyClients() {
-  clients.forEach((client) => {
-    client.write(
-      `data: ${JSON.stringify({
-        type: "data-updated",
-      })}\n\n`,
-    );
-  });
+function notifyClients(event = { type: "data-updated" }) {
+clients.forEach((client) => {
+client.write(`data: ${JSON.stringify(event)}\n\n`);
+});
+
 }
 
 function nextId(items) {
@@ -390,6 +387,129 @@ function syncOpenTicketsIntoMachines(data) {
   return changed;
 }
 
+function detectChanges(oldData, newData) {
+  const events = [];
+
+  if (!oldData) return events;
+
+  //
+  // Tickets créés
+  //
+  const oldTicketIds = new Set(
+    (oldData.tickets || []).map((t) => t.id),
+  );
+
+  for (const ticket of newData.tickets || []) {
+    if (!oldTicketIds.has(ticket.id)) {
+      events.push({
+        type: "ticket-created",
+        ticketId: ticket.id,
+        machineId: ticket.machineId,
+        category: ticket.category,
+        comment: ticket.comment,
+        createdBy: ticket.createdByName,
+      });
+    }
+  }
+
+  //
+  // Tickets clôturés
+  //
+  const oldTickets = new Map(
+    (oldData.tickets || []).map((t) => [t.id, t]),
+  );
+
+  for (const ticket of newData.tickets || []) {
+    const oldTicket = oldTickets.get(ticket.id);
+
+    if (
+      oldTicket &&
+      oldTicket.status === "open" &&
+      ticket.status === "closed"
+    ) {
+      events.push({
+        type: "ticket-closed",
+        ticketId: ticket.id,
+        machineId: ticket.machineId,
+        closedBy: ticket.closedBy,
+      });
+    }
+  }
+
+  //
+  // Changements machines
+  //
+  const oldMachines = new Map(
+    (oldData.machines || []).map((m) => [m.id, m]),
+  );
+
+  for (const machine of newData.machines || []) {
+    const oldMachine = oldMachines.get(machine.id);
+
+    if (!oldMachine) continue;
+
+    //
+    // Status machine
+    //
+    if (oldMachine.status !== machine.status) {
+      events.push({
+        type: "machine-status-changed",
+        machine: machine.name,
+        oldStatus: oldMachine.status,
+        newStatus: machine.status,
+      });
+    }
+
+    //
+    // ASD
+    //
+    if (oldMachine.asdStatus !== machine.asdStatus) {
+      events.push({
+        type: "asd-changed",
+        machine: machine.name,
+        oldStatus: oldMachine.asdStatus,
+        newStatus: machine.asdStatus,
+      });
+    }
+
+    //
+    // Nouveaux flags
+    //
+    const oldFlags = new Set(
+      (oldMachine.flags || []).map((f) => f.text),
+    );
+
+    for (const flag of machine.flags || []) {
+      if (!oldFlags.has(flag.text)) {
+        events.push({
+          type: "flag-added",
+          machine: machine.name,
+          text: flag.text,
+        });
+      }
+    }
+
+    //
+    // Nouveaux problèmes
+    //
+    const oldProblems = new Set(
+      (oldMachine.problems || []).map((p) => p.text),
+    );
+
+    for (const problem of machine.problems || []) {
+      if (!oldProblems.has(problem.text)) {
+        events.push({
+          type: "problem-added",
+          machine: machine.name,
+          text: problem.text,
+        });
+      }
+    }
+  }
+
+  return events;
+}
+
 function setupDataWatch() {
   const dataDir = path.dirname(DATA_PATH);
   const fileName = path.basename(DATA_PATH);
@@ -400,48 +520,78 @@ function setupDataWatch() {
     notifyClients();
   };
 
-  const startPolling = () => {
-    console.warn("Surveillance par polling (fs.watch indisponible sur ce système)");
+  try {
+    previousData = readData();
+  } catch {
+    previousData = null;
+  }
 
-    let lastMtime = 0;
-    try {
-      lastMtime = fs.statSync(DATA_PATH).mtimeMs;
-    } catch {
-      console.warn(`${DATA_PATH} introuvable — surveillance désactivée`);
-      return;
-    }
+  const onChange = () => {
+    clearTimeout(debounceTimer);
 
-    setInterval(() => {
+    debounceTimer = setTimeout(() => {
       try {
-        const mtime = fs.statSync(DATA_PATH).mtimeMs;
-        if (mtime !== lastMtime) {
-          lastMtime = mtime;
-          onChange();
+        const newData = readData();
+
+        const events = detectChanges(
+          previousData,
+          newData,
+        );
+
+        previousData = JSON.parse(
+          JSON.stringify(newData),
+        );
+
+        if (events.length === 0) {
+          notifyClients({
+            type: "data-updated",
+          });
+          return;
         }
-      } catch {
-        /* fichier temporairement inaccessible */
+
+        for (const event of events) {
+          console.log(
+            "[EVENT]",
+            JSON.stringify(event),
+          );
+
+          notifyClients(event);
+        }
+      } catch (err) {
+        console.error(
+          "Erreur analyse modification:",
+          err.message,
+        );
       }
-    }, 2000);
+    }, 500);
   };
 
   if (!fs.existsSync(DATA_PATH)) {
-    console.warn(`${DATA_PATH} introuvable — surveillance désactivée`);
+    console.warn(`${DATA_PATH} introuvable`);
     return;
   }
 
   try {
-    const watcher = fs.watch(dataDir, (event, name) => {
-      if (!name || name === fileName) onChange();
-    });
+    const watcher = fs.watch(
+      dataDir,
+      (event, name) => {
+        if (!name || name === fileName) {
+          onChange();
+        }
+      },
+    );
 
     watcher.on("error", (err) => {
-      console.warn("fs.watch interrompu:", err.message);
-      watcher.close();
-      startPolling();
+      console.error(
+        "Erreur watcher:",
+        err.message,
+      );
     });
   } catch (err) {
-    console.warn("fs.watch indisponible:", err.message);
-    startPolling();
+    console.error(
+      "fs.watch indisponible:",
+      err.message,
+    );
   }
 }
 
