@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Plus, Trash2, Check, Ticket as TicketIcon } from "lucide-react";
 import type { Machine, Ticket, TicketCategory, TodoItem } from "@/lib/types";
 import { machineKind } from "@/lib/types";
+import { getMachineWave, inferSerialFromName } from "@/lib/machineWave";
 import { applyTicketsToMachine, findLinkedTicket } from "@/lib/ticketSync";
 import { MachineTicketsPanel } from "@/components/MachineTicketsPanel";
 import { Button } from "@/components/ui/button";
@@ -225,9 +226,15 @@ const save = async () => {
 
   // La date de dernière intervention est mise à jour automatiquement à
   // l'enregistrement, sauf si elle a été renseignée manuellement.
-  const payload = lastDateEdited
-    ? draft
-    : { ...draft, lastDate: new Date().toISOString().slice(0, 19) };
+  const payload = {
+    ...(lastDateEdited
+      ? draft
+      : { ...draft, lastDate: new Date().toISOString().slice(0, 19) }),
+    serialNumber:
+      kind === "MP"
+        ? (draft.serialNumber ?? inferSerialFromName(draft.name))
+        : undefined,
+  };
 
   setSaving(true);
 
@@ -282,7 +289,19 @@ const remove = async () => {
               <fieldset disabled={readOnly} className="space-y-5 disabled:opacity-100">
               <div className="grid grid-cols-2 gap-4">
                 <Field label="Nom">
-                  <Input value={draft.name} onChange={(e) => set("name", e.target.value)} />
+                  <Input
+                    value={draft.name}
+                    onChange={(e) => {
+                      const name = e.target.value;
+                      set("name", name);
+                      if (machineKind({ name }) === "MP") {
+                        const inferred = inferSerialFromName(name);
+                        if (inferred != null && draft.serialNumber == null) {
+                          set("serialNumber", inferred);
+                        }
+                      }
+                    }}
+                  />
                 </Field>
                 <Field label="Localisation">
                   <Input
@@ -290,6 +309,29 @@ const remove = async () => {
                     onChange={(e) => set("localisation", e.target.value)}
                   />
                 </Field>
+                {kind === "MP" && (
+                  <Field label="N° de série">
+                    <Input
+                      type="number"
+                      value={draft.serialNumber ?? inferSerialFromName(draft.name) ?? ""}
+                      onChange={(e) =>
+                        set(
+                          "serialNumber",
+                          e.target.value === "" ? undefined : Number(e.target.value),
+                        )
+                      }
+                    />
+                    {(() => {
+                      const serial =
+                        draft.serialNumber ?? inferSerialFromName(draft.name);
+                      return serial != null ? (
+                        <p className="text-[11px] text-muted-foreground">
+                          Version : {getMachineWave(serial)}
+                        </p>
+                      ) : null;
+                    })()}
+                  </Field>
+                )}
                 <Field label="Version SW">
                   <Input value={draft.sw} onChange={(e) => set("sw", e.target.value)} />
                 </Field>

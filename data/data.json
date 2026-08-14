@@ -29,7 +29,8 @@
       "repairs": [],
       "localisation": "Thermal",
       "asdStatus": "pending",
-      "monthlyMaint": "not_done"
+      "monthlyMaint": "not_done",
+      "serialNumber": 300011
     },
     {
       "id": 2,
@@ -61,7 +62,8 @@
       "localisation": "BSL2",
       "pmHistory": [],
       "asdStatus": "valid",
-      "monthlyMaint": "done"
+      "monthlyMaint": "done",
+      "serialNumber": 300012
     },
     {
       "id": 3,
@@ -113,7 +115,8 @@
       "localisation": "BSL2",
       "asdStatus": "fail_precision",
       "pmHistory": [],
-      "monthlyMaint": "not_done"
+      "monthlyMaint": "not_done",
+      "serialNumber": 300016
     },
     {
       "id": 4,
@@ -139,7 +142,8 @@
       "localisation": "BSL2",
       "asdStatus": "fail_precision",
       "monthlyMaint": "not_done",
-      "pmHistory": []
+      "pmHistory": [],
+      "serialNumber": 300031
     },
     {
       "id": 5,
@@ -159,7 +163,8 @@
       "repairs": [],
       "localisation": "BSL2",
       "asdStatus": "valid",
-      "monthlyMaint": "not_done"
+      "monthlyMaint": "not_done",
+      "serialNumber": 300034
     },
     {
       "id": 6,
@@ -191,7 +196,8 @@
       ],
       "localisation": "BSL2",
       "asdStatus": "valid",
-      "monthlyMaint": "done"
+      "monthlyMaint": "done",
+      "serialNumber": 300038
     },
     {
       "id": 7,
@@ -223,7 +229,8 @@
         }
       ],
       "asdStatus": "valid",
-      "monthlyMaint": "done"
+      "monthlyMaint": "done",
+      "serialNumber": 300040
     },
     {
       "id": 8,
@@ -243,7 +250,8 @@
       "repairs": [],
       "localisation": "BSL2",
       "asdStatus": "fail_precision",
-      "monthlyMaint": "not_done"
+      "monthlyMaint": "not_done",
+      "serialNumber": 300060
     },
     {
       "id": 9,
@@ -264,7 +272,8 @@
       "localisation": "BSL2",
       "asdStatus": "valid",
       "pmHistory": [],
-      "monthlyMaint": "not_done"
+      "monthlyMaint": "not_done",
+      "serialNumber": 300080
     },
     {
       "id": 10,
@@ -301,7 +310,8 @@
       "localisation": "BSL2",
       "asdStatus": "pending",
       "pmHistory": [],
-      "monthlyMaint": "not_done"
+      "monthlyMaint": "not_done",
+      "serialNumber": 300086
     },
     {
       "id": 11,
@@ -342,7 +352,8 @@
       "localisation": "BSL2",
       "asdStatus": "fail_precision",
       "pmHistory": [],
-      "monthlyMaint": "not_done"
+      "monthlyMaint": "not_done",
+      "serialNumber": 300089
     },
     {
       "id": 12,

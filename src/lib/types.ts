@@ -41,6 +41,8 @@ export interface Machine {
   asdLabel?: string;
   pmHistory?: unknown[];
   monthlyMaint?: MonthlyMaint;
+  /** N° de série DXI 9000 (ex. MP11 → 300011) */
+  serialNumber?: number;
 }
 
 export type MachineKind = "MP" | "ACCESS";

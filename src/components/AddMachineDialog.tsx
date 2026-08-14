@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import type { Machine, MachineKind } from "@/lib/types";
+import { getMachineWave, inferSerialFromName } from "@/lib/machineWave";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -92,7 +93,14 @@ export function AddMachineDialog({ open, onOpenChange, onCreate }: Props) {
 
     setSaving(true);
     try {
-      await onCreate({ ...draft, name });
+      await onCreate({
+        ...draft,
+        name,
+        serialNumber:
+          kind === "MP"
+            ? (draft.serialNumber ?? inferSerialFromName(name))
+            : undefined,
+      });
     } finally {
       setSaving(false);
     }
@@ -128,7 +136,14 @@ export function AddMachineDialog({ open, onOpenChange, onCreate }: Props) {
             <Field label="Nom">
               <Input
                 value={draft.name}
-                onChange={(e) => set("name", e.target.value)}
+                onChange={(e) => {
+                  const name = e.target.value;
+                  set("name", name);
+                  if (kind === "MP") {
+                    const inferred = inferSerialFromName(name);
+                    if (inferred != null) set("serialNumber", inferred);
+                  }
+                }}
                 placeholder={kind === "ACCESS" ? "Access2 #511531" : "MP99"}
               />
             </Field>
@@ -146,6 +161,26 @@ export function AddMachineDialog({ open, onOpenChange, onCreate }: Props) {
                 </SelectContent>
               </Select>
             </Field>
+            {kind === "MP" && (
+              <Field label="N° de série">
+                <Input
+                  type="number"
+                  value={draft.serialNumber ?? ""}
+                  onChange={(e) =>
+                    set(
+                      "serialNumber",
+                      e.target.value === "" ? undefined : Number(e.target.value),
+                    )
+                  }
+                  placeholder="300011"
+                />
+                {draft.serialNumber != null && (
+                  <p className="text-[11px] text-muted-foreground">
+                    Version : {getMachineWave(draft.serialNumber)}
+                  </p>
+                )}
+              </Field>
+            )}
             <Field label="Version SW">
               <Input value={draft.sw} onChange={(e) => set("sw", e.target.value)} />
             </Field>

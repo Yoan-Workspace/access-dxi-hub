@@ -16,6 +16,7 @@ import type { EditMachineTab } from "@/components/EditMachineDialog";
 import type { Machine } from "@/lib/types";
 import { mpInstrumentHomeUrl } from "@/lib/labManager";
 import { machineKind } from "@/lib/types";
+import { waveForMachine } from "@/lib/machineWave";
 import { cn } from "@/lib/utils";
 
 const statusMap: Record<
@@ -155,6 +156,7 @@ export function MachineCard({
   onEdit: (tab?: EditMachineTab) => void;
 }) {
   const kind = machineKind(machine);
+  const wave = waveForMachine(machine);
   const s = statusMap[machine.status];
   const liveUrl = kind === "MP" ? mpInstrumentHomeUrl(machine.name) : null;
 
@@ -197,6 +199,12 @@ export function MachineCard({
             >
               {kind === "MP" ? "DXI 9000" : "Access 2"}
             </span>
+
+            {wave && (
+              <span className="inline-flex h-5 items-center rounded-full bg-mp/10 px-2 text-[10px] font-semibold tracking-wider text-mp">
+                {wave}
+              </span>
+            )}
 
             <span className={cn("inline-flex items-center gap-1 text-xs", s.color)}>
               <span className={cn("h-1.5 w-1.5 rounded-full", s.ring)} />

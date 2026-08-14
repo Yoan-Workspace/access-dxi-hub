@@ -61,6 +61,7 @@ import { FALCON_MP_LAB_DASHBOARD_URL } from "@/lib/labManager";
 import { afterUiSettled } from "@/lib/ui";
 import { applyTicketsToMachine, applyTicketsToMachines } from "@/lib/ticketSync";
 import { toast } from "sonner";
+import { DxiWaveNote } from "@/components/DxiWaveNote";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -617,6 +618,10 @@ function HomePage() {
           onChange={setFilters}
           onReset={() => setFilters(defaultFilters)}
         />
+
+        <div className="mt-3">
+          <DxiWaveNote />
+        </div>
 
         <div className="mt-4 md:hidden">
           <div className="relative">
