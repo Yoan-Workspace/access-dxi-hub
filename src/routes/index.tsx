@@ -38,7 +38,6 @@ import {
   fetchMachines,
   fetchTickets,
   fetchUsers,
-  getStoredToken,
   getApiBase,
   resetUserPassword,
   updateMachine,
@@ -141,7 +140,7 @@ function matchesPmFilter(machine: Machine, pm: MachineFiltersState["pm"]) {
 
 function HomePage() {
   const { theme, toggle } = useTheme();
-  const { user, logout } = useAuth();
+  const { user, token, logout } = useAuth();
   const qc = useQueryClient();
   const { data: machines = [], isLoading, error } = useQuery({
     queryKey: ["machines"],
@@ -208,22 +207,21 @@ function HomePage() {
   }, [editing, adding, creatingTicket]);
 
   useEffect(() => {
-    if (!API_CONFIGURED || !user) return;
+    if (!API_CONFIGURED || !user || !token) return;
 
     const apiBase = getApiBase();
-    const token = getStoredToken();
     const source = new EventSource(
-      `${apiBase}/api/events${token ? `?token=${encodeURIComponent(token)}` : ""}`,
+      `${apiBase}/api/events?token=${encodeURIComponent(token)}`,
     );
 
     source.onmessage = () => {
       if (Date.now() < skipSseUntilRef.current) return;
       if (dialogOpenRef.current) return;
-      if (Date.now() - lastSseRefetchRef.current < 8000) return;
+      if (Date.now() - lastSseRefetchRef.current < 1500) return;
       lastSseRefetchRef.current = Date.now();
 
-      void qc.invalidateQueries({ queryKey: ["machines"] });
-      void qc.invalidateQueries({ queryKey: ["tickets"] });
+      void qc.refetchQueries({ queryKey: ["machines"] });
+      void qc.refetchQueries({ queryKey: ["tickets"] });
 
       if (Date.now() - lastSseToastRef.current < 30000) return;
       lastSseToastRef.current = Date.now();
@@ -231,10 +229,10 @@ function HomePage() {
     };
 
     return () => source.close();
-  }, [qc, user?.id]);
+  }, [qc, user, token]);
 
   const markLocalWrite = () => {
-    skipSseUntilRef.current = Date.now() + 8000;
+    skipSseUntilRef.current = Date.now() + 2000;
   };
 
   const closeEditDialog = () => {

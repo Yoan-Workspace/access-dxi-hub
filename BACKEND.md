@@ -20,9 +20,8 @@ via l’URL de webhook (`TEAMS_WEBHOOK_URL`). Gratuit, sans licence Premium.
 La création du ticket n’échoue pas si Teams est indisponible.
 
 1. Dans Teams, créer un canal (ex. **Tickets**).
-2. Menu du canal (**…**) → **Workflows** → **Post to a channel when a webhook request is received**
-   (en français : publier sur un canal lorsqu’une demande de webhook est reçue).
-   Si **Connecteurs** / Incoming Webhook est encore disponible, ça marche aussi.
+2. Menu du canal (**…**) → **Workflows** → **Send webhook alerts to a channel**
+   (ou **Post to a channel when a webhook request is received**).
 3. Copier l’URL dans `.env` ou `.env.local` à la racine du projet (à côté de `server.js`) :
 
 ```
@@ -30,7 +29,9 @@ TEAMS_WEBHOOK_URL=https://...
 APP_PUBLIC_URL=http://IP-DE-LA-BOX:3000
 ```
 
-4. Redémarrer `node server.js`.
+4. Dans le flux, **Qui peut déclencher ?** doit être **Anyone / Tout le monde**
+   (sinon le serveur de la box est refusé).
+5. Redémarrer `node server.js` puis `npm run build` si le front a changé.
 
 Les membres du canal reçoivent la notification (ordinateur et téléphone via l’app
 Teams). Pour être sûr d’être alerté, activer les notifications du canal.

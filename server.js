@@ -11,12 +11,14 @@ const __dirname = path.dirname(__filename);
 function loadEnvFile(filename, { override = false } = {}) {
   const envPath = path.join(__dirname, filename);
   if (!fs.existsSync(envPath)) return false;
-  for (const line of fs.readFileSync(envPath, "utf8").split("\n")) {
+  let content = fs.readFileSync(envPath, "utf8");
+  if (content.charCodeAt(0) === 0xfeff) content = content.slice(1);
+  for (const line of content.split("\n")) {
     const trimmed = line.trim();
     if (!trimmed || trimmed.startsWith("#")) continue;
     const eq = trimmed.indexOf("=");
     if (eq === -1) continue;
-    const key = trimmed.slice(0, eq).trim();
+    const key = trimmed.slice(0, eq).trim().replace(/^export\s+/, "");
     const value = trimmed
       .slice(eq + 1)
       .trim()
@@ -46,14 +48,43 @@ app.use(express.json({ limit: "2mb" }));
 
 const clients = [];
 const sessions = new Map();
+const SESSIONS_PATH = path.join(path.dirname(path.resolve(DATA_PATH)), "sessions.json");
 let lastNotifyAt = 0;
+let lastOwnWriteAt = 0;
+let notifyTimer = null;
 
 function readData() {
   return JSON.parse(fs.readFileSync(DATA_PATH, "utf8"));
 }
 
 function writeData(data) {
+  lastOwnWriteAt = Date.now();
   fs.writeFileSync(DATA_PATH, JSON.stringify(data, null, 2));
+}
+
+function loadPersistedSessions() {
+  try {
+    if (!fs.existsSync(SESSIONS_PATH)) return 0;
+    const raw = JSON.parse(fs.readFileSync(SESSIONS_PATH, "utf8"));
+    let count = 0;
+    for (const [token, session] of Object.entries(raw)) {
+      if (session?.expiresAt > Date.now() && session.user) {
+        sessions.set(token, session);
+        count++;
+      }
+    }
+    return count;
+  } catch {
+    return 0;
+  }
+}
+
+function persistSessions() {
+  const obj = {};
+  for (const [token, session] of sessions.entries()) {
+    if (session.expiresAt > Date.now()) obj[token] = session;
+  }
+  fs.writeFileSync(SESSIONS_PATH, JSON.stringify(obj));
 }
 
 function ensureDataShape(data) {
@@ -196,18 +227,19 @@ function scheduleMonthlyMaintCheck() {
 }
 
 function notifyClients() {
-  const now = Date.now();
-  if (now - lastNotifyAt < 2000) return;
-  lastNotifyAt = now;
-
-  const payload = `data: ${JSON.stringify({ type: "data-updated" })}\n\n`;
-  for (let i = clients.length - 1; i >= 0; i--) {
-    try {
-      clients[i].write(payload);
-    } catch {
-      clients.splice(i, 1);
+  if (notifyTimer) return;
+  notifyTimer = setTimeout(() => {
+    notifyTimer = null;
+    lastNotifyAt = Date.now();
+    const payload = `data: ${JSON.stringify({ type: "data-updated" })}\n\n`;
+    for (let i = clients.length - 1; i >= 0; i--) {
+      try {
+        clients[i].write(payload);
+      } catch {
+        clients.splice(i, 1);
+      }
     }
-  }
+  }, 250);
 }
 
 function ticketCategoryLabel(category) {
@@ -249,20 +281,12 @@ function teamsTicketPayload({ ticket, machine }) {
       summary: title,
       title,
       sections: [{ facts, text: ticket.comment }],
-      potentialAction: APP_PUBLIC_URL
-        ? [
-            {
-              "@type": "OpenUri",
-              name: "Ouvrir Status Machines",
-              targets: [{ os: "default", uri: APP_PUBLIC_URL }],
-            },
-          ]
-        : undefined,
     };
   }
 
   return {
     text,
+    title,
     type: "message",
     attachments: [
       {
@@ -293,38 +317,43 @@ function teamsTicketPayload({ ticket, machine }) {
               wrap: true,
             },
           ],
-          actions: APP_PUBLIC_URL
-            ? [
-                {
-                  type: "Action.OpenUrl",
-                  title: "Ouvrir Status Machines",
-                  url: APP_PUBLIC_URL,
-                },
-              ]
-            : undefined,
         },
       },
     ],
   };
 }
 
-function notifyTeamsTicketOpened({ ticket, machine }) {
-  if (!TEAMS_WEBHOOK_URL) return;
-
-  fetch(TEAMS_WEBHOOK_URL, {
+async function postTeamsWebhook(payload) {
+  const response = await fetch(TEAMS_WEBHOOK_URL, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(teamsTicketPayload({ ticket, machine })),
-  })
-    .then(async (response) => {
-      if (!response.ok) {
-        const body = await response.text().catch(() => "");
-        console.warn(
-          `Notification Teams canal échouée (${response.status}): ${body.slice(0, 200)}`,
-        );
+    body: JSON.stringify(payload),
+    signal: AbortSignal.timeout(15000),
+  });
+  if (!response.ok) {
+    const body = await response.text().catch(() => "");
+    throw new Error(`${response.status} ${body.slice(0, 200)}`);
+  }
+}
+
+function notifyTeamsTicketOpened({ ticket, machine }) {
+  if (!TEAMS_WEBHOOK_URL) {
+    console.warn("Notification Teams ignorée : TEAMS_WEBHOOK_URL est vide");
+    return;
+  }
+
+  const payload = teamsTicketPayload({ ticket, machine });
+  postTeamsWebhook(payload)
+    .catch(async (error) => {
+      if (payload.text) {
+        try {
+          await postTeamsWebhook({ text: payload.text });
+          return;
+        } catch (retryError) {
+          console.warn("Notification Teams canal impossible:", retryError.message);
+          return;
+        }
       }
-    })
-    .catch((error) => {
       console.warn("Notification Teams canal impossible:", error.message);
     });
 }
@@ -664,8 +693,21 @@ function detectChanges(oldData, newData) {
 }
 
 function setupDataWatch() {
-  // Les écritures passent déjà par notifyClients().
-  // Ne pas surveiller data.json : Box/antivirus relance sinon le SSE en boucle.
+  const dataFile = path.resolve(DATA_PATH);
+  const dataDir = path.dirname(dataFile);
+  const dataName = path.basename(dataFile);
+  let debounce;
+
+  try {
+    fs.watch(dataDir, (_event, filename) => {
+      if (filename && filename !== dataName) return;
+      if (Date.now() - lastOwnWriteAt < 1500) return;
+      clearTimeout(debounce);
+      debounce = setTimeout(() => notifyClients(), 400);
+    });
+  } catch (error) {
+    console.warn("Surveillance du fichier données impossible:", error.message);
+  }
 }
 
 //
@@ -695,12 +737,14 @@ app.post("/api/auth/login", (req, res) => {
     user: safeUser,
     expiresAt: Date.now() + SESSION_TTL_MS,
   });
+  persistSessions();
 
   res.json({ token, user: safeUser });
 });
 
 app.post("/api/auth/logout", authMiddleware, (req, res) => {
   sessions.delete(req.token);
+  persistSessions();
   res.json({ ok: true });
 });
 
@@ -1143,15 +1187,19 @@ if (!fs.existsSync(DATA_PATH)) {
 }
 
 seedDefaultAdmin();
+const restoredSessions = loadPersistedSessions();
 setupDataWatch();
 
 app.listen(PORT, () => {
   console.log(`Serveur lancé sur http://localhost:${PORT}`);
+  if (restoredSessions > 0) {
+    console.log(`Sessions restaurées : ${restoredSessions}`);
+  }
   if (TEAMS_WEBHOOK_URL) {
     console.log("Notifications Teams : canal (nouveau ticket)");
   } else {
     console.log(
-      "Notifications Teams : désactivées (définir TEAMS_WEBHOOK_URL dans .env)",
+      "Notifications Teams : désactivées (TEAMS_WEBHOOK_URL dans .env ou .env.local)",
     );
   }
 
