@@ -285,8 +285,6 @@ function teamsTicketPayload({ ticket, machine }) {
   }
 
   return {
-    text,
-    title,
     type: "message",
     attachments: [
       {
@@ -295,25 +293,17 @@ function teamsTicketPayload({ ticket, machine }) {
         content: {
           $schema: "http://adaptivecards.io/schemas/adaptive-card.json",
           type: "AdaptiveCard",
-          version: "1.4",
+          version: "1.2",
           body: [
             {
               type: "TextBlock",
-              size: "Large",
-              weight: "Bolder",
               text: title,
+              weight: "Bolder",
               wrap: true,
             },
             {
-              type: "FactSet",
-              facts: facts.map((fact) => ({
-                title: fact.name,
-                value: fact.value,
-              })),
-            },
-            {
               type: "TextBlock",
-              text: ticket.comment,
+              text,
               wrap: true,
             },
           ],
@@ -344,17 +334,19 @@ function notifyTeamsTicketOpened({ ticket, machine }) {
 
   const payload = teamsTicketPayload({ ticket, machine });
   postTeamsWebhook(payload)
+    .then(() => {
+      console.log(`Notification Teams envoyée (ticket #${ticket.id})`);
+    })
     .catch(async (error) => {
-      if (payload.text) {
-        try {
-          await postTeamsWebhook({ text: payload.text });
-          return;
-        } catch (retryError) {
-          console.warn("Notification Teams canal impossible:", retryError.message);
-          return;
-        }
+      try {
+        await postTeamsWebhook({ text: teamsTicketText({ ticket, machine }) });
+        console.log(`Notification Teams envoyée en texte (ticket #${ticket.id})`);
+      } catch (retryError) {
+        console.warn(
+          "Notification Teams canal impossible:",
+          retryError.message || error.message,
+        );
       }
-      console.warn("Notification Teams canal impossible:", error.message);
     });
 }
 
@@ -1196,7 +1188,12 @@ app.listen(PORT, () => {
     console.log(`Sessions restaurées : ${restoredSessions}`);
   }
   if (TEAMS_WEBHOOK_URL) {
-    console.log("Notifications Teams : canal (nouveau ticket)");
+    try {
+      const host = new URL(TEAMS_WEBHOOK_URL).host;
+      console.log(`Notifications Teams : canal (${host})`);
+    } catch {
+      console.log("Notifications Teams : canal (URL webhook invalide)");
+    }
   } else {
     console.log(
       "Notifications Teams : désactivées (TEAMS_WEBHOOK_URL dans .env ou .env.local)",

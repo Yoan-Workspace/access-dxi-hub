@@ -146,11 +146,13 @@ function HomePage() {
     queryKey: ["machines"],
     queryFn: fetchMachines,
     enabled: Boolean(user),
+    refetchInterval: user ? 10_000 : false,
   });
   const { data: tickets = [] } = useQuery({
     queryKey: ["tickets"],
     queryFn: () => fetchTickets(),
     enabled: Boolean(user) && API_CONFIGURED,
+    refetchInterval: user ? 10_000 : false,
   });
 
   const [filters, setFilters] = useState<MachineFiltersState>(defaultFilters);

@@ -1,10 +1,12 @@
 import type { Machine, Ticket, User } from "./types";
 
 function resolveApiBase(): string | undefined {
+  // En production le front est servi par server.js : toujours la même origine.
+  // Sinon VITE_API_URL=localhost dans .env.local casse le live update sur les autres PC.
+  if (import.meta.env.PROD) return "";
   const fromEnv = (import.meta as { env?: Record<string, string | undefined> }).env
     ?.VITE_API_URL?.replace(/\/$/, "");
   if (fromEnv) return fromEnv;
-  if (import.meta.env.PROD) return "";
   return undefined;
 }
 

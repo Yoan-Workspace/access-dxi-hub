@@ -22,7 +22,8 @@ La création du ticket n’échoue pas si Teams est indisponible.
 1. Dans Teams, créer un canal (ex. **Tickets**).
 2. Menu du canal (**…**) → **Workflows** → **Send webhook alerts to a channel**
    (ou **Post to a channel when a webhook request is received**).
-3. Copier l’URL dans `.env` ou `.env.local` à la racine du projet (à côté de `server.js`) :
+3. Copier l’URL dans `.env` ou `.env.local` **à côté de `server.js`**
+   (pas dans `dist/`, le build ne l’embarque pas) :
 
 ```
 TEAMS_WEBHOOK_URL=https://...
