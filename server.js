@@ -8,9 +8,9 @@ import { fileURLToPath } from "url";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-function loadEnvFile() {
-  const envPath = path.join(__dirname, ".env");
-  if (!fs.existsSync(envPath)) return;
+function loadEnvFile(filename, { override = false } = {}) {
+  const envPath = path.join(__dirname, filename);
+  if (!fs.existsSync(envPath)) return false;
   for (const line of fs.readFileSync(envPath, "utf8").split("\n")) {
     const trimmed = line.trim();
     if (!trimmed || trimmed.startsWith("#")) continue;
@@ -21,11 +21,15 @@ function loadEnvFile() {
       .slice(eq + 1)
       .trim()
       .replace(/^["']|["']$/g, "");
-    if (key && process.env[key] === undefined) process.env[key] = value;
+    if (key && (override || process.env[key] === undefined)) {
+      process.env[key] = value;
+    }
   }
+  return true;
 }
 
-loadEnvFile();
+loadEnvFile(".env");
+loadEnvFile(".env.local", { override: true });
 
 const app = express();
 const PORT = Number(process.env.PORT) || 3000;

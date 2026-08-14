@@ -23,7 +23,7 @@ La création du ticket n’échoue pas si Teams est indisponible.
 2. Menu du canal (**…**) → **Workflows** → **Post to a channel when a webhook request is received**
    (en français : publier sur un canal lorsqu’une demande de webhook est reçue).
    Si **Connecteurs** / Incoming Webhook est encore disponible, ça marche aussi.
-3. Copier l’URL dans `.env` à la racine du projet :
+3. Copier l’URL dans `.env` ou `.env.local` à la racine du projet (à côté de `server.js`) :
 
 ```
 TEAMS_WEBHOOK_URL=https://...
