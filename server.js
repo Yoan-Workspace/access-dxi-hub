@@ -8,30 +8,53 @@ import { fileURLToPath } from "url";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-function loadEnvFile(filename, { override = false } = {}) {
-  const envPath = path.join(__dirname, filename);
-  if (!fs.existsSync(envPath)) return false;
-  let content = fs.readFileSync(envPath, "utf8");
+function parseEnvContent(content, { override = false } = {}) {
   if (content.charCodeAt(0) === 0xfeff) content = content.slice(1);
-  for (const line of content.split("\n")) {
+  let lastKey = null;
+  const keys = [];
+  for (const line of content.split(/\r?\n/)) {
     const trimmed = line.trim();
     if (!trimmed || trimmed.startsWith("#")) continue;
     const eq = trimmed.indexOf("=");
-    if (eq === -1) continue;
+    if (eq === -1) {
+      if (lastKey && /^(https?:\/\/|&|sig=|sp=|sv=)/i.test(trimmed)) {
+        process.env[lastKey] = `${process.env[lastKey] || ""}${trimmed}`;
+      }
+      continue;
+    }
     const key = trimmed.slice(0, eq).trim().replace(/^export\s+/, "");
     const value = trimmed
       .slice(eq + 1)
       .trim()
       .replace(/^["']|["']$/g, "");
-    if (key && (override || process.env[key] === undefined)) {
+    if (!key) continue;
+    if (override || process.env[key] === undefined) {
       process.env[key] = value;
+      keys.push(key);
     }
+    lastKey = key;
   }
-  return true;
+  return keys;
 }
 
-loadEnvFile(".env");
-loadEnvFile(".env.local", { override: true });
+function loadEnvFile(filename, { override = false } = {}) {
+  const candidates = [
+    path.join(__dirname, filename),
+    path.join(process.cwd(), filename),
+  ];
+  for (const envPath of candidates) {
+    if (!fs.existsSync(envPath)) continue;
+    parseEnvContent(fs.readFileSync(envPath, "utf8"), { override });
+    return envPath;
+  }
+  return null;
+}
+
+const loadedEnvFiles = [
+  loadEnvFile(".env"),
+  loadEnvFile(".env.local", { override: true }),
+  loadEnvFile(".env.local.txt", { override: true }),
+].filter(Boolean);
 
 const app = express();
 const PORT = Number(process.env.PORT) || 3000;
@@ -1184,20 +1207,33 @@ setupDataWatch();
 
 app.listen(PORT, () => {
   console.log(`Serveur lancé sur http://localhost:${PORT}`);
+  console.log(`Dossier server.js : ${__dirname}`);
+  if (loadedEnvFiles.length > 0) {
+    console.log(`Fichiers env lus : ${loadedEnvFiles.join(", ")}`);
+  } else {
+    console.log("Aucun fichier .env / .env.local trouvé à côté de server.js");
+  }
   if (restoredSessions > 0) {
     console.log(`Sessions restaurées : ${restoredSessions}`);
   }
-  if (TEAMS_WEBHOOK_URL) {
+  const webhook = process.env.TEAMS_WEBHOOK_URL?.trim() || "";
+  if (webhook) {
     try {
-      const host = new URL(TEAMS_WEBHOOK_URL).host;
+      const host = new URL(webhook).host;
       console.log(`Notifications Teams : canal (${host})`);
     } catch {
-      console.log("Notifications Teams : canal (URL webhook invalide)");
+      console.log(
+        `Notifications Teams : URL webhook invalide (${webhook.slice(0, 40)}…)`,
+      );
     }
   } else {
     console.log(
-      "Notifications Teams : désactivées (TEAMS_WEBHOOK_URL dans .env ou .env.local)",
+      "Notifications Teams : désactivées — TEAMS_WEBHOOK_URL est vide.",
     );
+    console.log(
+      "Ajoute dans .env.local (une seule ligne, à côté de server.js) :",
+    );
+    console.log("TEAMS_WEBHOOK_URL=https://...");
   }
 
   const reset = maybeResetMonthlyMaint();
