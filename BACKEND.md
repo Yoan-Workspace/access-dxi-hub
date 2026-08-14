@@ -13,6 +13,28 @@ Sans cette variable, le frontend lit `public/machines.json` en lecture seule (mo
 
 Le serveur de référence est `server.js` à la racine (port **3000**, données dans `data/data.json`).
 
+## Notifications Teams (nouveau ticket → canal)
+
+Quand un ticket est ouvert, le serveur poste un message dans un **canal Teams**
+via l’URL de webhook (`TEAMS_WEBHOOK_URL`). Gratuit, sans licence Premium.
+La création du ticket n’échoue pas si Teams est indisponible.
+
+1. Dans Teams, créer un canal (ex. **Tickets**).
+2. Menu du canal (**…**) → **Workflows** → **Post to a channel when a webhook request is received**
+   (en français : publier sur un canal lorsqu’une demande de webhook est reçue).
+   Si **Connecteurs** / Incoming Webhook est encore disponible, ça marche aussi.
+3. Copier l’URL dans `.env` à la racine du projet :
+
+```
+TEAMS_WEBHOOK_URL=https://...
+APP_PUBLIC_URL=http://IP-DE-LA-BOX:3000
+```
+
+4. Redémarrer `node server.js`.
+
+Les membres du canal reçoivent la notification (ordinateur et téléphone via l’app
+Teams). Pour être sûr d’être alerté, activer les notifications du canal.
+
 ## Endpoints
 
 ### `GET /api/machines`

@@ -8,9 +8,33 @@ import { fileURLToPath } from "url";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+function loadEnvFile() {
+  const envPath = path.join(__dirname, ".env");
+  if (!fs.existsSync(envPath)) return;
+  for (const line of fs.readFileSync(envPath, "utf8").split("\n")) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("#")) continue;
+    const eq = trimmed.indexOf("=");
+    if (eq === -1) continue;
+    const key = trimmed.slice(0, eq).trim();
+    const value = trimmed
+      .slice(eq + 1)
+      .trim()
+      .replace(/^["']|["']$/g, "");
+    if (key && process.env[key] === undefined) process.env[key] = value;
+  }
+}
+
+loadEnvFile();
+
 const app = express();
 const PORT = Number(process.env.PORT) || 3000;
 const DATA_PATH = process.env.DATA_PATH || "./data/data.json";
+const TEAMS_WEBHOOK_URL = process.env.TEAMS_WEBHOOK_URL?.trim() || "";
+const APP_PUBLIC_URL = (process.env.APP_PUBLIC_URL || `http://localhost:${PORT}`).replace(
+  /\/$/,
+  "",
+);
 const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
 app.use(cors());
@@ -180,6 +204,125 @@ function notifyClients() {
       clients.splice(i, 1);
     }
   }
+}
+
+function ticketCategoryLabel(category) {
+  return category === "flag" ? "Flag" : "Problème";
+}
+
+function isOfficeIncomingWebhook(url) {
+  return /webhook\.office\.com|outlook\.office\.com\/webhook/i.test(url);
+}
+
+function teamsTicketText({ ticket, machine }) {
+  const category = ticketCategoryLabel(ticket.category);
+  return [
+    `Nouveau ticket #${ticket.id}`,
+    `Machine : ${machine.name}`,
+    `Catégorie : ${category}`,
+    `Ouvert par : ${ticket.createdByName}`,
+    `Commentaire : ${ticket.comment}`,
+  ].join("\n");
+}
+
+function teamsTicketPayload({ ticket, machine }) {
+  const category = ticketCategoryLabel(ticket.category);
+  const title = `Nouveau ticket #${ticket.id} — ${machine.name} (${category})`;
+  const text = teamsTicketText({ ticket, machine });
+  const facts = [
+    { name: "Machine", value: String(machine.name ?? "") },
+    { name: "Catégorie", value: category },
+    { name: "Ouvert par", value: String(ticket.createdByName ?? "") },
+    { name: "Date", value: String(ticket.createdAt ?? "") },
+  ];
+
+  if (isOfficeIncomingWebhook(TEAMS_WEBHOOK_URL)) {
+    return {
+      text,
+      "@type": "MessageCard",
+      "@context": "https://schema.org/extensions",
+      themeColor: ticket.category === "flag" ? "EAB308" : "EF4444",
+      summary: title,
+      title,
+      sections: [{ facts, text: ticket.comment }],
+      potentialAction: APP_PUBLIC_URL
+        ? [
+            {
+              "@type": "OpenUri",
+              name: "Ouvrir Status Machines",
+              targets: [{ os: "default", uri: APP_PUBLIC_URL }],
+            },
+          ]
+        : undefined,
+    };
+  }
+
+  return {
+    text,
+    type: "message",
+    attachments: [
+      {
+        contentType: "application/vnd.microsoft.card.adaptive",
+        contentUrl: null,
+        content: {
+          $schema: "http://adaptivecards.io/schemas/adaptive-card.json",
+          type: "AdaptiveCard",
+          version: "1.4",
+          body: [
+            {
+              type: "TextBlock",
+              size: "Large",
+              weight: "Bolder",
+              text: title,
+              wrap: true,
+            },
+            {
+              type: "FactSet",
+              facts: facts.map((fact) => ({
+                title: fact.name,
+                value: fact.value,
+              })),
+            },
+            {
+              type: "TextBlock",
+              text: ticket.comment,
+              wrap: true,
+            },
+          ],
+          actions: APP_PUBLIC_URL
+            ? [
+                {
+                  type: "Action.OpenUrl",
+                  title: "Ouvrir Status Machines",
+                  url: APP_PUBLIC_URL,
+                },
+              ]
+            : undefined,
+        },
+      },
+    ],
+  };
+}
+
+function notifyTeamsTicketOpened({ ticket, machine }) {
+  if (!TEAMS_WEBHOOK_URL) return;
+
+  fetch(TEAMS_WEBHOOK_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(teamsTicketPayload({ ticket, machine })),
+  })
+    .then(async (response) => {
+      if (!response.ok) {
+        const body = await response.text().catch(() => "");
+        console.warn(
+          `Notification Teams canal échouée (${response.status}): ${body.slice(0, 200)}`,
+        );
+      }
+    })
+    .catch((error) => {
+      console.warn("Notification Teams canal impossible:", error.message);
+    });
 }
 
 function nextId(items) {
@@ -731,6 +874,7 @@ app.post("/api/tickets", authMiddleware, (req, res) => {
   data.tickets.push(ticket);
   writeData(data);
   notifyClients();
+  notifyTeamsTicketOpened({ ticket, machine });
 
   res.status(201).json({ ticket, machine });
 });
@@ -999,6 +1143,13 @@ setupDataWatch();
 
 app.listen(PORT, () => {
   console.log(`Serveur lancé sur http://localhost:${PORT}`);
+  if (TEAMS_WEBHOOK_URL) {
+    console.log("Notifications Teams : canal (nouveau ticket)");
+  } else {
+    console.log(
+      "Notifications Teams : désactivées (définir TEAMS_WEBHOOK_URL dans .env)",
+    );
+  }
 
   const reset = maybeResetMonthlyMaint();
   if (reset.performed) {

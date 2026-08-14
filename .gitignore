@@ -18,6 +18,7 @@ data/*
 !data/data.json
 !data/.gitkeep
 *.local
+.env
 
 # Wrangler / Cloudflare
 .wrangler/
