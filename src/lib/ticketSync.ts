@@ -110,3 +110,32 @@ export function findLinkedTicket(
       t.status === "open",
   );
 }
+
+/** Ajoute les tickets apparus pendant l'édition, sans écraser le brouillon. */
+export function mergeNewTicketItems(machine: Machine, tickets: Ticket[]): Machine {
+  let changed = false;
+  const next: Machine = {
+    ...machine,
+    flags: [...(machine.flags ?? [])],
+    problems: [...(machine.problems ?? [])],
+  };
+
+  for (const ticket of tickets) {
+    if (!sameId(ticket.machineId, machine.id)) continue;
+    const key = listKeyForCategory(ticket.category);
+    if (!key) continue;
+    if (next[key].some((item) => sameId(item.ticketId, ticket.id))) continue;
+    changed = true;
+    next[key] = [
+      ...next[key],
+      {
+        text: ticket.comment,
+        completed: ticket.status === "closed",
+        ticketId: ticket.id,
+        ...(ticket.status === "closed" ? { completedDate: todayFr() } : {}),
+      },
+    ];
+  }
+
+  return changed ? next : machine;
+}

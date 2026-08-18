@@ -142,25 +142,27 @@ function HomePage() {
   const { theme, toggle } = useTheme();
   const { user, token, logout } = useAuth();
   const qc = useQueryClient();
+  const [editing, setEditing] = useState<Machine | null>(null);
+  const [adding, setAdding] = useState(false);
+  const [creatingTicket, setCreatingTicket] = useState(false);
+  const pauseLiveRefresh = Boolean(editing) || adding || creatingTicket;
+
   const { data: machines = [], isLoading, error } = useQuery({
     queryKey: ["machines"],
     queryFn: fetchMachines,
     enabled: Boolean(user),
-    refetchInterval: user ? 10_000 : false,
+    refetchInterval: user && !pauseLiveRefresh ? 10_000 : false,
   });
   const { data: tickets = [] } = useQuery({
     queryKey: ["tickets"],
     queryFn: () => fetchTickets(),
     enabled: Boolean(user) && API_CONFIGURED,
-    refetchInterval: user ? 10_000 : false,
+    refetchInterval: user && !pauseLiveRefresh ? 10_000 : false,
   });
 
   const [filters, setFilters] = useState<MachineFiltersState>(defaultFilters);
   const [query, setQuery] = useState("");
-  const [editing, setEditing] = useState<Machine | null>(null);
   const [editTab, setEditTab] = useState<EditMachineTab>("general");
-  const [adding, setAdding] = useState(false);
-  const [creatingTicket, setCreatingTicket] = useState(false);
   const [ticketMachineId, setTicketMachineId] = useState<number | undefined>();
   const [managingUsers, setManagingUsers] = useState(false);
   const [changePasswordOpen, setChangePasswordOpen] = useState(false);
@@ -699,11 +701,6 @@ function HomePage() {
         onDeleteTicket={async (id) => {
           await deleteTicketMutation.mutateAsync(id);
         }}
-        onCreateTicket={
-          API_CONFIGURED && canCreateTicket(user?.role)
-            ? async (input) => createTicketMutation.mutateAsync(input)
-            : undefined
-        }
         onOpenCreateTicket={
           API_CONFIGURED && canCreateTicket(user?.role)
             ? () => {

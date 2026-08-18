@@ -510,6 +510,82 @@ function closeMatchingOpenTickets(data, machineId, category, text, closedBy) {
   return changed;
 }
 
+function syncMachineLinkedTickets(data, previous, machine, user) {
+  const now = new Date().toISOString().slice(0, 19);
+  const created = [];
+  const pairs = [
+    ["problems", "probleme"],
+    ["flags", "flag"],
+  ];
+
+  for (const [listKey, category] of pairs) {
+    const nextList = Array.isArray(machine[listKey]) ? machine[listKey] : [];
+    const prevList = Array.isArray(previous[listKey]) ? previous[listKey] : [];
+    const nextIds = new Set(
+      nextList
+        .filter((item) => item.ticketId != null)
+        .map((item) => Number(item.ticketId)),
+    );
+
+    for (const old of prevList) {
+      if (old.ticketId == null) continue;
+      if (nextIds.has(Number(old.ticketId))) continue;
+      const index = data.tickets.findIndex(
+        (ticket) => ticket.id === Number(old.ticketId),
+      );
+      if (index !== -1) data.tickets.splice(index, 1);
+    }
+
+    for (const item of nextList) {
+      const text = String(item.text ?? "").trim();
+      if (!text) continue;
+
+      if (item.ticketId == null) {
+        const ticket = {
+          id: nextId(data.tickets),
+          machineId: Number(machine.id),
+          category,
+          comment: text,
+          status: item.completed ? "closed" : "open",
+          createdBy: user.id,
+          createdByName: user.displayName,
+          createdAt: now,
+          updatedAt: now,
+        };
+        if (item.completed) {
+          ticket.closedAt = now;
+          ticket.closedBy = user.displayName;
+        }
+        data.tickets.push(ticket);
+        item.ticketId = ticket.id;
+        if (ticket.status === "open") created.push({ ticket, machine });
+        continue;
+      }
+
+      const ticket = data.tickets.find(
+        (entry) => entry.id === Number(item.ticketId),
+      );
+      if (!ticket) continue;
+
+      if (ticket.comment !== text) {
+        ticket.comment = text;
+        ticket.updatedAt = now;
+      }
+
+      if (item.completed && ticket.status === "open") {
+        closeTicketById(data, ticket.id, user.displayName);
+      } else if (!item.completed && ticket.status === "closed") {
+        ticket.status = "open";
+        delete ticket.closedAt;
+        delete ticket.closedBy;
+        ticket.updatedAt = now;
+      }
+    }
+  }
+
+  return created;
+}
+
 function closeTicketsForCompletedItems(data, machine, closedBy) {
   let changed = false;
 
@@ -1101,11 +1177,20 @@ app.put(
       return res.status(404).json({ error: "Machine introuvable" });
     }
 
+    const previous = data.machines[index];
     const machine = { ...req.body, id };
+    const createdTickets = syncMachineLinkedTickets(
+      data,
+      previous,
+      machine,
+      req.user,
+    );
     data.machines[index] = machine;
-    closeTicketsForCompletedItems(data, machine, req.user.displayName);
     writeData(data);
     notifyClients();
+    for (const created of createdTickets) {
+      notifyTeamsTicketOpened(created);
+    }
 
     res.json(machine);
   },
