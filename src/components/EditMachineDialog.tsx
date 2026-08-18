@@ -3,7 +3,7 @@ import { Plus, Trash2, Check, Ticket as TicketIcon } from "lucide-react";
 import type { Machine, Ticket, TicketCategory, TodoItem } from "@/lib/types";
 import { machineKind } from "@/lib/types";
 import { getMachineWave, inferSerialFromName } from "@/lib/machineWave";
-import { applyTicketsToMachine, findLinkedTicket } from "@/lib/ticketSync";
+import { applyTicketsToMachine, mergeNewTicketItems } from "@/lib/ticketSync";
 import { MachineTicketsPanel } from "@/components/MachineTicketsPanel";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -116,10 +116,9 @@ export function EditMachineDialog({
   onDelete,
   onUpdateTicket,
   onDeleteTicket,
-  onCreateTicket,
   onOpenCreateTicket,
 }: Props) {
-  const [draft, setDraft] = useState<Machine | null>(machine);
+  const [draft, setDraft] = useState<Machine | null>(null);
   const [tab, setTab] = useState<EditMachineTab>(initialTab);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -127,26 +126,26 @@ export function EditMachineDialog({
   const [lastDateEdited, setLastDateEdited] = useState(false);
 
   useEffect(() => {
-    if (open && machine) {
-      setDraft((prev) => {
-        const base =
-          prev && prev.id === machine.id ? prev : structuredClone(machine);
-        return applyTicketsToMachine(base, tickets);
-      });
-    } else if (!machine) {
+    if (!open || !machine) {
       setDraft(null);
+      setConfirmDelete(false);
+      setLastDateEdited(false);
+      return;
     }
-  }, [machine, open, tickets]);
+
+    setDraft(structuredClone(applyTicketsToMachine(machine, tickets)));
+    setConfirmDelete(false);
+    setLastDateEdited(false);
+    // Snapshot at open: do not resync from parent while the user is typing.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, machine?.id]);
 
   useEffect(() => {
-    if (open && machine) {
-      setConfirmDelete(false);
-      setLastDateEdited(false);
-    } else if (!machine) {
-      setConfirmDelete(false);
-      setLastDateEdited(false);
-    }
-  }, [open, machine?.id]);
+    if (!open) return;
+    setDraft((current) =>
+      current ? mergeNewTicketItems(current, tickets) : current,
+    );
+  }, [open, tickets]);
 
   useEffect(() => {
     if (open) setTab(initialTab);
@@ -160,68 +159,24 @@ export function EditMachineDialog({
   const set = <K extends keyof Machine>(k: K, v: Machine[K]) =>
     setDraft((d) => (d ? { ...d, [k]: v } : d));
 
-  const syncLinkedList = (
-    key: "problems" | "flags",
-    category: "probleme" | "flag",
-    items: TodoItem[],
-  ) => {
-    if (!draft) return;
-    const previous = draft[key] ?? [];
-    set(key, items);
-
-    // Item supprimé → supprimer le ticket lié
-    for (const old of previous) {
-      const stillThere = items.some(
-        (item) =>
-          (old.ticketId != null && Number(item.ticketId) === Number(old.ticketId)) ||
-          (old.ticketId == null && item.text === old.text),
-      );
-      if (stillThere) continue;
-
-      const linked =
-        old.ticketId != null
-          ? tickets.find((t) => Number(t.id) === Number(old.ticketId))
-          : findLinkedTicket(tickets, category, old);
-
-      if (linked && onDeleteTicket) {
-        void onDeleteTicket(linked.id);
-      }
-    }
-
-    if (!onUpdateTicket) return;
-
-    for (const item of items) {
-      const linked =
-        findLinkedTicket(tickets, category, item) ??
-        (item.ticketId != null
-          ? tickets.find((t) => Number(t.id) === Number(item.ticketId))
-          : undefined);
-
-      const old = previous.find(
-        (entry) =>
-          (item.ticketId != null &&
-            Number(entry.ticketId) === Number(item.ticketId)) ||
-          entry.text === item.text,
-      );
-
-      if (!linked) continue;
-
-      if (item.completed && old && !old.completed && linked.status === "open") {
-        void onUpdateTicket(linked.id, { status: "closed" });
-      }
-
-      if (!item.completed && old?.completed && linked.status === "closed") {
-        void onUpdateTicket(linked.id, { status: "open" });
-      }
-
-      if (item.text !== linked.comment && Number(item.ticketId) === Number(linked.id)) {
-        void onUpdateTicket(linked.id, { comment: item.text });
-      }
-    }
+  const setPmRef = (patch: Partial<NonNullable<Machine["pmRef"]>>) => {
+    setDraft((d) => {
+      if (!d) return d;
+      const now = new Date();
+      return {
+        ...d,
+        pmRef: {
+          period: 6,
+          month: months[now.getMonth()],
+          year: now.getFullYear(),
+          ...d.pmRef,
+          ...patch,
+        },
+      };
+    });
   };
 
-  
-const save = async () => {
+  const save = async () => {
   if (!draft) return;
 
   // La date de dernière intervention est mise à jour automatiquement à
@@ -485,12 +440,7 @@ const remove = async () => {
     <Field label="Type de PM réalisée">
       <Select
         value={draft.pmRef ? String(draft.pmRef.period) : ""}
-        onValueChange={(v) =>
-          set("pmRef", {
-            ...draft.pmRef,
-            period: Number(v),
-          })
-        }
+        onValueChange={(v) => setPmRef({ period: Number(v) })}
       >
         <SelectTrigger>
           <SelectValue />
@@ -510,13 +460,8 @@ const remove = async () => {
 
     <Field label="Mois réalisé">
       <Select
-        value={draft.pmRef.month}
-        onValueChange={(v) =>
-          set("pmRef", {
-            ...draft.pmRef,
-            month: v,
-          })
-        }
+        value={draft.pmRef?.month ?? ""}
+        onValueChange={(v) => setPmRef({ month: v })}
       >
         <SelectTrigger>
           <SelectValue />
@@ -538,13 +483,8 @@ const remove = async () => {
     <Field label="Année réalisée">
       <Input
         type="number"
-        value={draft.pmRef.year}
-        onChange={(e) =>
-          set("pmRef", {
-            ...draft.pmRef,
-            year: Number(e.target.value),
-          })
-        }
+        value={draft.pmRef?.year ?? ""}
+        onChange={(e) => setPmRef({ year: Number(e.target.value) })}
       />
     </Field>
   </div>
@@ -555,41 +495,17 @@ const remove = async () => {
             <TabsContent value="flags" className="mt-0">
               <TodoEditor
                 items={draft.flags}
-                onChange={(items) => syncLinkedList("flags", "flag", items)}
+                onChange={(items) => set("flags", items)}
                 placeholder="Nouveau flag…"
                 readOnly={readOnly}
-                onCreateLinked={
-                  onCreateTicket
-                    ? async (text) => {
-                        const { ticket } = await onCreateTicket({
-                          machineId: draft.id,
-                          category: "flag",
-                          comment: text,
-                        });
-                        return ticket.id;
-                      }
-                    : undefined
-                }
               />
             </TabsContent>
             <TabsContent value="problems" className="mt-0">
               <TodoEditor
                 items={draft.problems}
-                onChange={(items) => syncLinkedList("problems", "probleme", items)}
+                onChange={(items) => set("problems", items)}
                 placeholder="Nouveau problème…"
                 readOnly={readOnly}
-                onCreateLinked={
-                  onCreateTicket
-                    ? async (text) => {
-                        const { ticket } = await onCreateTicket({
-                          machineId: draft.id,
-                          category: "probleme",
-                          comment: text,
-                        });
-                        return ticket.id;
-                      }
-                    : undefined
-                }
               />
             </TabsContent>
             <TabsContent value="repairs" className="mt-0">
@@ -711,33 +627,19 @@ function TodoEditor({
   onChange,
   placeholder,
   readOnly = false,
-  onCreateLinked,
 }: {
   items: TodoItem[];
   onChange: (items: TodoItem[]) => void;
   placeholder: string;
   readOnly?: boolean;
-  onCreateLinked?: (text: string) => Promise<number | undefined>;
 }) {
   const [text, setText] = useState("");
-  const [adding, setAdding] = useState(false);
 
-  const add = async () => {
+  const add = () => {
     const t = text.trim();
-    if (!t || adding) return;
-
-    setAdding(true);
-    try {
-      if (onCreateLinked) {
-        await onCreateLinked(t);
-        setText("");
-        return;
-      }
-      onChange([...items, { text: t, completed: false }]);
-      setText("");
-    } finally {
-      setAdding(false);
-    }
+    if (!t) return;
+    onChange([...items, { text: t, completed: false }]);
+    setText("");
   };
 
   const toggle = (i: number) => {
@@ -767,11 +669,11 @@ function TodoEditor({
           onKeyDown={(e) => {
             if (e.key === "Enter") {
               e.preventDefault();
-              void add();
+              add();
             }
           }}
         />
-        <Button onClick={() => void add()} type="button" variant="secondary" disabled={adding}>
+        <Button onClick={add} type="button" variant="secondary">
           <Plus className="h-4 w-4" /> Ajouter
         </Button>
       </div>
@@ -785,7 +687,7 @@ function TodoEditor({
         <ul className="space-y-1.5">
           {items.map((it, i) => (
             <li
-              key={it.ticketId != null ? `ticket-${it.ticketId}` : `item-${i}-${it.text}`}
+              key={it.ticketId != null ? `ticket-${it.ticketId}` : `local-${i}`}
               className={cn(
                 "group flex items-center gap-2 rounded-lg border bg-card px-2.5 py-1.5",
                 it.completed && "opacity-60",
