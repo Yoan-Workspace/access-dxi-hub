@@ -58,6 +58,9 @@ export function applyTicketsToMachine(
     const list = next[key];
     let item =
       list.find((entry) => sameId(entry.ticketId, ticket.id)) ??
+      (ticket.itemId != null
+        ? list.find((entry) => sameId(entry.id, ticket.itemId))
+        : undefined) ??
       list.find(
         (entry) =>
           entry.ticketId == null &&
@@ -67,6 +70,7 @@ export function applyTicketsToMachine(
 
     if (!item) {
       list.push({
+        id: ticket.itemId,
         text: ticket.comment,
         completed: ticket.status === "closed",
         ticketId: ticket.id,
@@ -76,7 +80,9 @@ export function applyTicketsToMachine(
     }
 
     item.ticketId = ticket.id;
-    item.text = ticket.comment;
+    if (ticket.itemId != null && item.id == null) item.id = ticket.itemId;
+    // Ne pas écraser le texte machine par un ticket périmé : les deux
+    // sont synchronisés à l'écriture (PUT machine / PUT ticket).
 
     if (ticket.status === "closed" && !item.completed) {
       item.completed = true;
@@ -148,12 +154,20 @@ export function linkTicketIdsPreserveText(
 
     for (const item of list) {
       if (item.ticketId != null) continue;
-      const match = related.find(
-        (ticket) =>
-          !taken.has(Number(ticket.id)) && ticket.comment === item.text,
-      );
+      const match =
+        related.find(
+          (ticket) =>
+            !taken.has(Number(ticket.id)) &&
+            item.id != null &&
+            sameId(ticket.itemId, item.id),
+        ) ??
+        related.find(
+          (ticket) =>
+            !taken.has(Number(ticket.id)) && ticket.comment === item.text,
+        );
       if (!match) continue;
       item.ticketId = match.id;
+      if (match.itemId != null && item.id == null) item.id = match.itemId;
       taken.add(Number(match.id));
       changed = true;
     }
@@ -176,10 +190,27 @@ export function mergeNewTicketItems(machine: Machine, tickets: Ticket[]): Machin
     const key = listKeyForCategory(ticket.category);
     if (!key) continue;
     if (next[key].some((item) => sameId(item.ticketId, ticket.id))) continue;
+    const byItemId =
+      ticket.itemId != null
+        ? next[key].find(
+            (item) => item.ticketId == null && sameId(item.id, ticket.itemId),
+          )
+        : undefined;
+    const byText = next[key].find(
+      (item) => item.ticketId == null && item.text === ticket.comment,
+    );
+    const existing = byItemId ?? byText;
+    if (existing) {
+      existing.ticketId = ticket.id;
+      if (ticket.itemId != null && existing.id == null) existing.id = ticket.itemId;
+      changed = true;
+      continue;
+    }
     changed = true;
     next[key] = [
       ...next[key],
       {
+        id: ticket.itemId,
         text: ticket.comment,
         completed: ticket.status === "closed",
         ticketId: ticket.id,

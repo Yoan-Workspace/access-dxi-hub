@@ -393,44 +393,75 @@ function machineListForCategory(machine, category) {
   return null;
 }
 
-function addTicketToMachineCategory(machine, category, text, ticketId) {
+function nextMachineItemId(machine) {
+  let max = 0;
+  for (const key of ["flags", "problems", "improvements", "repairs"]) {
+    for (const item of machine[key] ?? []) {
+      const id = Number(item?.id);
+      if (Number.isFinite(id) && id > max) max = id;
+    }
+  }
+  return max + 1;
+}
+
+function ensureItemId(machine, item) {
+  if (item.id != null && Number.isFinite(Number(item.id))) {
+    return Number(item.id);
+  }
+  item.id = nextMachineItemId(machine);
+  return item.id;
+}
+
+function bindTicketAndItem(machine, ticket, item) {
+  if (!ticket || !item) return;
+  ensureItemId(machine, item);
+  item.ticketId = ticket.id;
+  ticket.itemId = Number(item.id);
+}
+
+function findLinkedItem(machine, category, ticket) {
   const list = machineListForCategory(machine, category);
-  if (!list) return false;
-
-  if (ticketId != null) {
-    const byId = list.find((item) => Number(item.ticketId) === Number(ticketId));
-    if (byId) {
-      let changed = false;
-      if (byId.text !== text) {
-        byId.text = text;
-        changed = true;
-      }
-      if (byId.completed) {
-        byId.completed = false;
-        delete byId.completedDate;
-        changed = true;
-      }
-      return changed;
-    }
-  }
-
-  const byText = list.find(
-    (item) => item.text === text && item.completed !== true,
+  if (!list || !ticket) return null;
+  return (
+    list.find((item) => Number(item.ticketId) === Number(ticket.id)) ||
+    (ticket.itemId != null
+      ? list.find((item) => Number(item.id) === Number(ticket.itemId))
+      : null) ||
+    null
   );
-  if (byText) {
-    if (ticketId != null && Number(byText.ticketId) !== Number(ticketId)) {
-      byText.ticketId = ticketId;
-      return true;
+}
+
+function addTicketToMachineCategory(machine, category, text, ticket) {
+  const list = machineListForCategory(machine, category);
+  if (!list) return null;
+  const ticketId = ticket?.id;
+  const itemId = ticket?.itemId;
+
+  let item =
+    (ticketId != null &&
+      list.find((entry) => Number(entry.ticketId) === Number(ticketId))) ||
+    (itemId != null && list.find((entry) => Number(entry.id) === Number(itemId))) ||
+    list.find((entry) => entry.text === text && entry.completed !== true);
+
+  if (item) {
+    item.text = text;
+    if (item.completed) {
+      item.completed = false;
+      delete item.completedDate;
     }
-    return false;
+    if (ticket) bindTicketAndItem(machine, ticket, item);
+    else ensureItemId(machine, item);
+    return item;
   }
 
-  list.push({
+  item = {
+    id: itemId ?? nextMachineItemId(machine),
     text,
     completed: false,
-    ...(ticketId != null ? { ticketId } : {}),
-  });
-  return true;
+  };
+  list.push(item);
+  if (ticket) bindTicketAndItem(machine, ticket, item);
+  return item;
 }
 
 function completeTicketOnMachine(machine, category, text, ticketId) {
@@ -519,8 +550,9 @@ function inheritSameRowTicketId(nextList, prevList) {
 
   for (let i = 0; i < nextList.length; i++) {
     const item = nextList[i];
-    if (item.ticketId != null) continue;
     const prev = prevList[i];
+    if (item.id == null && prev?.id != null) item.id = prev.id;
+    if (item.ticketId != null) continue;
     if (prev?.ticketId == null) continue;
     const prevId = Number(prev.ticketId);
     if (taken.has(prevId)) continue;
@@ -529,7 +561,7 @@ function inheritSameRowTicketId(nextList, prevList) {
   }
 }
 
-function createLinkedTicket(data, machine, user, category, text, completed, now) {
+function createLinkedTicket(data, machine, user, category, text, completed, now, item) {
   const ticket = {
     id: nextId(data.tickets),
     machineId: Number(machine.id),
@@ -545,6 +577,7 @@ function createLinkedTicket(data, machine, user, category, text, completed, now)
     ticket.closedAt = now;
     ticket.closedBy = user.displayName;
   }
+  if (item) bindTicketAndItem(machine, ticket, item);
   data.tickets.push(ticket);
   console.log(
     `Ticket #${ticket.id} créé (${category}) pour ${machine.name}${
@@ -552,6 +585,24 @@ function createLinkedTicket(data, machine, user, category, text, completed, now)
     }`,
   );
   return ticket;
+}
+
+function findTicketForItem(data, machine, category, item) {
+  if (item.ticketId != null) {
+    const byTicketId = data.tickets.find(
+      (entry) => Number(entry.id) === Number(item.ticketId),
+    );
+    if (byTicketId) return byTicketId;
+  }
+  if (item.id == null) return null;
+  return (
+    data.tickets.find(
+      (entry) =>
+        Number(entry.machineId) === Number(machine.id) &&
+        entry.category === category &&
+        Number(entry.itemId) === Number(item.id),
+    ) ?? null
+  );
 }
 
 function syncMachineLinkedTickets(data, previous, machine, user) {
@@ -585,11 +636,9 @@ function syncMachineLinkedTickets(data, previous, machine, user) {
     for (const item of nextList) {
       const text = String(item.text ?? "").trim();
       if (!text) continue;
+      ensureItemId(machine, item);
 
-      let ticket =
-        item.ticketId != null
-          ? data.tickets.find((entry) => Number(entry.id) === Number(item.ticketId))
-          : null;
+      let ticket = findTicketForItem(data, machine, category, item);
 
       if (!ticket) {
         ticket = createLinkedTicket(
@@ -600,11 +649,13 @@ function syncMachineLinkedTickets(data, previous, machine, user) {
           text,
           Boolean(item.completed),
           now,
+          item,
         );
-        item.ticketId = ticket.id;
         if (ticket.status === "open") created.push({ ticket, machine });
         continue;
       }
+
+      bindTicketAndItem(machine, ticket, item);
 
       if (ticket.comment !== text) {
         ticket.comment = text;
@@ -674,16 +725,13 @@ function syncOpenTicketsIntoMachines(data) {
     if (!machine) continue;
 
     if (ticket.status === "open") {
-      if (
-        addTicketToMachineCategory(
-          machine,
-          ticket.category,
-          ticket.comment,
-          ticket.id,
-        )
-      ) {
-        changed = true;
-      }
+      addTicketToMachineCategory(
+        machine,
+        ticket.category,
+        ticket.comment,
+        ticket,
+      );
+      changed = true;
     } else if (
       completeTicketOnMachine(
         machine,
@@ -1002,7 +1050,7 @@ app.get("/api/tickets", authMiddleware, (req, res) => {
 });
 
 app.post("/api/tickets", authMiddleware, (req, res) => {
-  const { machineId, category, comment } = req.body ?? {};
+  const { machineId, category, comment, itemId } = req.body ?? {};
   const allowedCategories = ["probleme", "flag"];
 
   if (!machineId || !allowedCategories.includes(category) || !comment?.trim()) {
@@ -1032,9 +1080,10 @@ app.post("/api/tickets", authMiddleware, (req, res) => {
     createdByName: req.user.displayName,
     createdAt: now,
     updatedAt: now,
+    ...(itemId != null ? { itemId: Number(itemId) } : {}),
   };
 
-  addTicketToMachineCategory(machine, category, text, ticket.id);
+  addTicketToMachineCategory(machine, category, text, ticket);
   data.machines[machineIndex] = machine;
   data.tickets.push(ticket);
   writeData(data);
@@ -1104,7 +1153,7 @@ app.put("/api/tickets/:id", authMiddleware, requireRole("admin", "technicien"), 
         machine,
         updated.category,
         updated.comment,
-        updated.id,
+        updated,
       );
     } else {
       completeTicketOnMachine(
@@ -1113,6 +1162,8 @@ app.put("/api/tickets/:id", authMiddleware, requireRole("admin", "technicien"), 
         updated.comment,
         updated.id,
       );
+      const linked = findLinkedItem(machine, updated.category, updated);
+      if (linked) bindTicketAndItem(machine, updated, linked);
     }
   }
 
@@ -1231,9 +1282,14 @@ app.put(
       notifyTeamsTicketOpened(created);
     }
 
+    const machineTickets = data.tickets.filter(
+      (ticket) => Number(ticket.machineId) === id,
+    );
+
     res.json({
       machine,
       createdTickets: createdTickets.map((entry) => entry.ticket),
+      tickets: machineTickets,
     });
   },
 );

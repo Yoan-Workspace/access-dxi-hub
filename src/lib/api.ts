@@ -128,20 +128,26 @@ export async function createMachine(machine: Omit<Machine, "id">): Promise<Machi
 
 export async function updateMachine(
   m: Machine,
-): Promise<{ machine: Machine; createdTickets: Ticket[] }> {
+): Promise<{ machine: Machine; createdTickets: Ticket[]; tickets: Ticket[] }> {
   const data = (await apiFetch(`/api/machines/${m.id}`, {
     method: "PUT",
     body: JSON.stringify(m),
-  })) as Machine | { machine?: Machine; createdTickets?: Ticket[] };
+  })) as
+    | Machine
+    | { machine?: Machine; createdTickets?: Ticket[]; tickets?: Ticket[] };
 
   if (data && typeof data === "object" && "machine" in data && data.machine) {
+    const createdTickets = Array.isArray(data.createdTickets)
+      ? data.createdTickets
+      : [];
     return {
       machine: data.machine,
-      createdTickets: Array.isArray(data.createdTickets) ? data.createdTickets : [],
+      createdTickets,
+      tickets: Array.isArray(data.tickets) ? data.tickets : createdTickets,
     };
   }
 
-  return { machine: data as Machine, createdTickets: [] };
+  return { machine: data as Machine, createdTickets: [], tickets: [] };
 }
 
 export async function deleteMachine(id: number): Promise<void> {
@@ -159,6 +165,7 @@ export async function createTicket(input: {
   machineId: number;
   category: Ticket["category"];
   comment: string;
+  itemId?: number;
 }): Promise<{ ticket: Ticket; machine?: Machine }> {
   const data = (await apiFetch("/api/tickets", {
     method: "POST",

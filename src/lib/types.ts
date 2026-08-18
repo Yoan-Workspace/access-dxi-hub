@@ -11,10 +11,12 @@ export type MonthlyMaint = "done" | "not_done";
 export type Localisation = "BSL2" | "Thermal" | string;
 
 export interface TodoItem {
+  /** Identifiant stable de la ligne (problème / flag) */
+  id?: number;
   text: string;
   completed: boolean;
   completedDate?: string;
-  /** Lien vers un ticket problème / flag */
+  /** Lien vers le ticket associé */
   ticketId?: number;
 }
 
@@ -72,6 +74,8 @@ export interface Ticket {
   updatedAt: string;
   closedAt?: string;
   closedBy?: string;
+  /** Identifiant de la ligne problème / flag liée */
+  itemId?: number;
 }
 
 export function machineKind(m: Pick<Machine, "name">): MachineKind {
