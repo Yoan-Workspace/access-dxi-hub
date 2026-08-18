@@ -126,11 +126,22 @@ export async function createMachine(machine: Omit<Machine, "id">): Promise<Machi
   })) as Machine;
 }
 
-export async function updateMachine(m: Machine): Promise<Machine> {
-  return (await apiFetch(`/api/machines/${m.id}`, {
+export async function updateMachine(
+  m: Machine,
+): Promise<{ machine: Machine; createdTickets: Ticket[] }> {
+  const data = (await apiFetch(`/api/machines/${m.id}`, {
     method: "PUT",
     body: JSON.stringify(m),
-  })) as Machine;
+  })) as Machine | { machine?: Machine; createdTickets?: Ticket[] };
+
+  if (data && typeof data === "object" && "machine" in data && data.machine) {
+    return {
+      machine: data.machine,
+      createdTickets: Array.isArray(data.createdTickets) ? data.createdTickets : [],
+    };
+  }
+
+  return { machine: data as Machine, createdTickets: [] };
 }
 
 export async function deleteMachine(id: number): Promise<void> {

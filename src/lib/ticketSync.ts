@@ -23,7 +23,9 @@ function listKeyForCategory(
 export function applyTicketsToMachine(
   machine: Machine,
   tickets: Ticket[],
+  options: { pruneMissing?: boolean } = {},
 ): Machine {
+  const pruneMissing = options.pruneMissing ?? true;
   const next: Machine = {
     ...machine,
     flags: (machine.flags ?? []).map((item) => ({ ...item })),
@@ -38,13 +40,16 @@ export function applyTicketsToMachine(
 
   const existingTicketIds = new Set(related.map((t) => Number(t.id)));
 
-  // Supprime les items liés à un ticket qui n'existe plus
-  next.flags = next.flags.filter(
-    (item) => item.ticketId == null || existingTicketIds.has(Number(item.ticketId)),
-  );
-  next.problems = next.problems.filter(
-    (item) => item.ticketId == null || existingTicketIds.has(Number(item.ticketId)),
-  );
+  // Ne pas retirer les lignes liées tant que la liste des tickets n'est pas chargée :
+  // tickets=[] au premier rendu ferait disparaître les problèmes / flags.
+  if (pruneMissing) {
+    next.flags = next.flags.filter(
+      (item) => item.ticketId == null || existingTicketIds.has(Number(item.ticketId)),
+    );
+    next.problems = next.problems.filter(
+      (item) => item.ticketId == null || existingTicketIds.has(Number(item.ticketId)),
+    );
+  }
 
   for (const ticket of related) {
     const key = listKeyForCategory(ticket.category);
@@ -90,8 +95,9 @@ export function applyTicketsToMachine(
 export function applyTicketsToMachines(
   machines: Machine[],
   tickets: Ticket[],
+  options?: { pruneMissing?: boolean },
 ): Machine[] {
-  return machines.map((machine) => applyTicketsToMachine(machine, tickets));
+  return machines.map((machine) => applyTicketsToMachine(machine, tickets, options));
 }
 
 export function findLinkedTicket(
@@ -150,20 +156,6 @@ export function linkTicketIdsPreserveText(
       item.ticketId = match.id;
       taken.add(Number(match.id));
       changed = true;
-    }
-
-    const unmatchedTickets = related.filter(
-      (ticket) => !taken.has(Number(ticket.id)),
-    );
-    const unlinkedItems = list.filter((item) => item.ticketId == null);
-    if (
-      unmatchedTickets.length > 0 &&
-      unmatchedTickets.length === unlinkedItems.length
-    ) {
-      unlinkedItems.forEach((item, index) => {
-        item.ticketId = unmatchedTickets[index].id;
-        changed = true;
-      });
     }
   }
 
