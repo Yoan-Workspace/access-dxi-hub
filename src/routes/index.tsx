@@ -279,9 +279,6 @@ function HomePage() {
     mutationFn: updateMachine,
     onMutate: markLocalWrite,
     onSuccess: ({ machine: updated, createdTickets }) => {
-      qc.setQueryData<Machine[]>(["machines"], (prev) =>
-        prev?.map((m) => (m.id === updated.id ? updated : m)) ?? prev,
-      );
       if (createdTickets.length > 0) {
         qc.setQueryData<Ticket[]>(["tickets"], (prev) => {
           const list = prev ?? [];
@@ -294,6 +291,9 @@ function HomePage() {
           return next;
         });
       }
+      qc.setQueryData<Machine[]>(["machines"], (prev) =>
+        prev?.map((m) => (m.id === updated.id ? updated : m)) ?? prev,
+      );
       void qc.invalidateQueries({ queryKey: ["tickets"] });
       toast.success(
         createdTickets.length > 0
@@ -747,6 +747,11 @@ function HomePage() {
         onDeleteTicket={async (id) => {
           await deleteTicketMutation.mutateAsync(id);
         }}
+        onCreateTicket={
+          API_CONFIGURED && canCreateTicket(user?.role)
+            ? async (input) => createTicketMutation.mutateAsync(input)
+            : undefined
+        }
         onOpenCreateTicket={
           API_CONFIGURED && canCreateTicket(user?.role)
             ? () => {
