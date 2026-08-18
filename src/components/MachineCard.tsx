@@ -17,24 +17,22 @@ import type { Machine } from "@/lib/types";
 import { mpInstrumentHomeUrl } from "@/lib/labManager";
 import { machineKind } from "@/lib/types";
 import { waveForMachine } from "@/lib/machineWave";
+import { effectiveStatus, STATUS_LABELS } from "@/lib/machineEtat";
 import { cn } from "@/lib/utils";
 
-const statusMap: Record<
+const statusStyle: Record<
   Machine["status"],
-  { label: string; color: string; ring: string }
+  { color: string; ring: string }
 > = {
   ok: {
-    label: "OK",
     color: "text-success",
     ring: "bg-success",
   },
   maintenance: {
-    label: "Maintenance",
     color: "text-maintenance",
     ring: "bg-maintenance",
   },
   danger: {
-    label: "Problème",
     color: "text-danger",
     ring: "bg-danger",
   },
@@ -81,9 +79,13 @@ const monthMap: Record<string, number> = {
 };
 
 function getNextPm(machine: Machine) {
+  if (!machine.pmRef?.month || machine.pmRef.year == null) return null;
+  const monthIndex = monthMap[machine.pmRef.month];
+  if (monthIndex == null) return null;
+
   const lastPmDate = new Date(
     machine.pmRef.year,
-    monthMap[machine.pmRef.month],
+    monthIndex,
     1,
   );
   const dueDate = new Date(lastPmDate);
@@ -96,7 +98,9 @@ function getNextPm(machine: Machine) {
 }
 
 function pmDueThisMonthLabel(machine: Machine): string | null {
-  const { dueDate, nextType } = getNextPm(machine);
+  const next = getNextPm(machine);
+  if (!next) return null;
+  const { dueDate, nextType } = next;
   const now = new Date();
 
   if (
@@ -121,7 +125,9 @@ function maintenanceDue(machine: Machine, kind: ReturnType<typeof machineKind>) 
     return true;
   }
 
-  const { dueDate } = getNextPm(machine);
+  const next = getNextPm(machine);
+  if (!next) return false;
+  const { dueDate } = next;
   const now = new Date();
   const currentMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
@@ -136,10 +142,10 @@ function maintenanceDue(machine: Machine, kind: ReturnType<typeof machineKind>) 
 function cardTopBarClass(
   machine: Machine,
   kind: ReturnType<typeof machineKind>,
-  activeProblems: number,
 ) {
-  if (activeProblems > 0 || machine.status === "danger") return "bg-danger";
-  if (machine.status === "maintenance") return "bg-maintenance";
+  const etat = effectiveStatus(machine);
+  if (etat === "danger") return "bg-danger";
+  if (etat === "maintenance") return "bg-maintenance";
   if (maintenanceDue(machine, kind)) return "bg-warning";
   return "bg-success";
 }
@@ -157,7 +163,8 @@ export function MachineCard({
 }) {
   const kind = machineKind(machine);
   const wave = waveForMachine(machine);
-  const s = statusMap[machine.status];
+  const etat = effectiveStatus(machine);
+  const s = { label: STATUS_LABELS[etat], ...statusStyle[etat] };
   const liveUrl = kind === "MP" ? mpInstrumentHomeUrl(machine.name) : null;
 
   const flagsInProgress = pendingCount(machine.flags);
@@ -168,7 +175,7 @@ export function MachineCard({
   const probsDone = doneCount(machine.problems);
   const repairsInProgress = pendingCount(machine.repairs);
   const repairsDone = doneCount(machine.repairs);
-  const topBarClass = cardTopBarClass(machine, kind, probsInProgress);
+  const topBarClass = cardTopBarClass(machine, kind);
   const pmThisMonth = pmDueThisMonthLabel(machine);
 
   return (

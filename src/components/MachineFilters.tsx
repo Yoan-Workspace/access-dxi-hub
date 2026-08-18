@@ -13,6 +13,7 @@ import {
   X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { STATUS_LABELS } from "@/lib/machineEtat";
 
 export type TypeFilter = "all" | "mp" | "access";
 export type StatusFilter = "all" | "ok" | "maintenance" | "danger";
@@ -87,10 +88,8 @@ function activeLabel(filters: MachineFiltersState, group: GroupId): string | nul
       if (filters.type === "access") return "Access 2";
       return null;
     case "status":
-      if (filters.status === "ok") return "OK";
-      if (filters.status === "maintenance") return "Maint.";
-      if (filters.status === "danger") return "Problèmes";
-      return null;
+      if (filters.status === "all") return null;
+      return STATUS_LABELS[filters.status];
     case "pm":
       if (filters.pm === "pm-overdue") return "Retard";
       if (filters.pm === "pm-current") return "Ce mois";
@@ -112,7 +111,7 @@ function groupAlert(stats: FilterStats, group: GroupId): boolean {
     case "type":
       return false;
     case "status":
-      return stats.danger > 0 || stats.maintenance > 0 || stats.activeProblems > 0;
+      return stats.danger > 0 || stats.maintenance > 0;
     case "pm":
       return stats.pmOverdue > 0 || stats.pmCurrent > 0;
     case "track":
@@ -177,21 +176,21 @@ export function MachineFilters({ filters, stats, onChange, onReset }: Props) {
                   onClick={() => set("status", "ok")}
                   tone="success"
                 >
-                  OK ({stats.ok})
+                  {STATUS_LABELS.ok} ({stats.ok})
                 </Chip>
                 <Chip
                   active={filters.status === "maintenance"}
                   onClick={() => set("status", "maintenance")}
                   tone="maintenance"
                 >
-                  Maintenance ({stats.maintenance})
+                  {STATUS_LABELS.maintenance} ({stats.maintenance})
                 </Chip>
                 <Chip
                   active={filters.status === "danger"}
                   onClick={() => set("status", "danger")}
                   tone="danger"
                 >
-                  Problèmes ({stats.danger})
+                  {STATUS_LABELS.danger} ({stats.danger})
                 </Chip>
               </>
             )}
