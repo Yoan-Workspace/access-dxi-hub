@@ -111,6 +111,65 @@ export function findLinkedTicket(
   );
 }
 
+/**
+ * Attache les ticketId manquants sans modifier le texte saisi.
+ * Sert quand les items machine n'ont pas encore de ticketId en base.
+ */
+export function linkTicketIdsPreserveText(
+  machine: Machine,
+  tickets: Ticket[],
+): Machine {
+  const next: Machine = {
+    ...machine,
+    flags: (machine.flags ?? []).map((item) => ({ ...item })),
+    problems: (machine.problems ?? []).map((item) => ({ ...item })),
+  };
+
+  let changed = false;
+
+  for (const key of ["flags", "problems"] as const) {
+    const category = key === "flags" ? "flag" : "probleme";
+    const list = next[key];
+    const related = tickets.filter(
+      (ticket) =>
+        sameId(ticket.machineId, machine.id) && ticket.category === category,
+    );
+    const taken = new Set(
+      list
+        .filter((item) => item.ticketId != null)
+        .map((item) => Number(item.ticketId)),
+    );
+
+    for (const item of list) {
+      if (item.ticketId != null) continue;
+      const match = related.find(
+        (ticket) =>
+          !taken.has(Number(ticket.id)) && ticket.comment === item.text,
+      );
+      if (!match) continue;
+      item.ticketId = match.id;
+      taken.add(Number(match.id));
+      changed = true;
+    }
+
+    const unmatchedTickets = related.filter(
+      (ticket) => !taken.has(Number(ticket.id)),
+    );
+    const unlinkedItems = list.filter((item) => item.ticketId == null);
+    if (
+      unmatchedTickets.length > 0 &&
+      unmatchedTickets.length === unlinkedItems.length
+    ) {
+      unlinkedItems.forEach((item, index) => {
+        item.ticketId = unmatchedTickets[index].id;
+        changed = true;
+      });
+    }
+  }
+
+  return changed ? next : machine;
+}
+
 /** Ajoute les tickets apparus pendant l'édition, sans écraser le brouillon. */
 export function mergeNewTicketItems(machine: Machine, tickets: Ticket[]): Machine {
   let changed = false;

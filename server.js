@@ -510,6 +510,43 @@ function closeMatchingOpenTickets(data, machineId, category, text, closedBy) {
   return changed;
 }
 
+function assignMissingTicketIds(nextList, prevList, data, machineId, category) {
+  const taken = new Set(
+    nextList
+      .filter((item) => item.ticketId != null)
+      .map((item) => Number(item.ticketId)),
+  );
+  const unusedPrev = prevList.filter(
+    (item) => item.ticketId == null || !taken.has(Number(item.ticketId)),
+  );
+  let prevCursor = 0;
+
+  for (const item of nextList) {
+    if (item.ticketId != null) continue;
+
+    const prev = unusedPrev[prevCursor++];
+    if (prev?.ticketId != null) {
+      item.ticketId = Number(prev.ticketId);
+      taken.add(Number(item.ticketId));
+      continue;
+    }
+
+    const oldText = prev?.text;
+    const ticket = data.tickets.find(
+      (entry) =>
+        Number(entry.machineId) === Number(machineId) &&
+        entry.category === category &&
+        !taken.has(Number(entry.id)) &&
+        (entry.comment === item.text ||
+          (oldText != null && entry.comment === oldText)),
+    );
+    if (ticket) {
+      item.ticketId = ticket.id;
+      taken.add(Number(ticket.id));
+    }
+  }
+}
+
 function syncMachineLinkedTickets(data, previous, machine, user) {
   const now = new Date().toISOString().slice(0, 19);
   const created = [];
@@ -521,6 +558,7 @@ function syncMachineLinkedTickets(data, previous, machine, user) {
   for (const [listKey, category] of pairs) {
     const nextList = Array.isArray(machine[listKey]) ? machine[listKey] : [];
     const prevList = Array.isArray(previous[listKey]) ? previous[listKey] : [];
+    assignMissingTicketIds(nextList, prevList, data, machine.id, category);
     const nextIds = new Set(
       nextList
         .filter((item) => item.ticketId != null)
@@ -531,7 +569,7 @@ function syncMachineLinkedTickets(data, previous, machine, user) {
       if (old.ticketId == null) continue;
       if (nextIds.has(Number(old.ticketId))) continue;
       const index = data.tickets.findIndex(
-        (ticket) => ticket.id === Number(old.ticketId),
+        (ticket) => Number(ticket.id) === Number(old.ticketId),
       );
       if (index !== -1) data.tickets.splice(index, 1);
     }
@@ -563,7 +601,7 @@ function syncMachineLinkedTickets(data, previous, machine, user) {
       }
 
       const ticket = data.tickets.find(
-        (entry) => entry.id === Number(item.ticketId),
+        (entry) => Number(entry.id) === Number(item.ticketId),
       );
       if (!ticket) continue;
 

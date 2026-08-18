@@ -145,19 +145,17 @@ function HomePage() {
   const [editing, setEditing] = useState<Machine | null>(null);
   const [adding, setAdding] = useState(false);
   const [creatingTicket, setCreatingTicket] = useState(false);
-  const pauseLiveRefresh = Boolean(editing) || adding || creatingTicket;
-
   const { data: machines = [], isLoading, error } = useQuery({
     queryKey: ["machines"],
     queryFn: fetchMachines,
     enabled: Boolean(user),
-    refetchInterval: user && !pauseLiveRefresh ? 10_000 : false,
+    refetchInterval: user ? 10_000 : false,
   });
   const { data: tickets = [] } = useQuery({
     queryKey: ["tickets"],
     queryFn: () => fetchTickets(),
     enabled: Boolean(user) && API_CONFIGURED,
-    refetchInterval: user && !pauseLiveRefresh ? 10_000 : false,
+    refetchInterval: user ? 10_000 : false,
   });
 
   const [filters, setFilters] = useState<MachineFiltersState>(defaultFilters);
@@ -168,10 +166,10 @@ function HomePage() {
   const [changePasswordOpen, setChangePasswordOpen] = useState(false);
   const [users, setUsers] = useState<User[]>([]);
 
-  const dialogOpenRef = useRef(false);
   const skipSseUntilRef = useRef(0);
   const lastSseToastRef = useRef(0);
   const lastSseRefetchRef = useRef(0);
+  const lastRemoteSigRef = useRef("");
   const readOnly = isReadOnlyUser(user);
 
   const ticketsByMachine = useMemo(() => {
@@ -207,10 +205,6 @@ function HomePage() {
     : [];
 
   useEffect(() => {
-    dialogOpenRef.current = Boolean(editing) || adding || creatingTicket;
-  }, [editing, adding, creatingTicket]);
-
-  useEffect(() => {
     if (!API_CONFIGURED || !user || !token) return;
 
     const apiBase = getApiBase();
@@ -220,23 +214,48 @@ function HomePage() {
 
     source.onmessage = () => {
       if (Date.now() < skipSseUntilRef.current) return;
-      if (dialogOpenRef.current) return;
       if (Date.now() - lastSseRefetchRef.current < 1500) return;
       lastSseRefetchRef.current = Date.now();
 
       void qc.refetchQueries({ queryKey: ["machines"] });
       void qc.refetchQueries({ queryKey: ["tickets"] });
-
-      if (Date.now() - lastSseToastRef.current < 30000) return;
-      lastSseToastRef.current = Date.now();
-      toast.info("Base de données mise à jour");
     };
 
     return () => source.close();
   }, [qc, user, token]);
 
+  useEffect(() => {
+    if (!user) return;
+    const signature = JSON.stringify({
+      machines: machines.map((machine) => ({
+        id: machine.id,
+        lastDate: machine.lastDate,
+        status: machine.status,
+        name: machine.name,
+        problems: machine.problems,
+        flags: machine.flags,
+      })),
+      tickets: tickets.map((ticket) => ({
+        id: ticket.id,
+        comment: ticket.comment,
+        status: ticket.status,
+        updatedAt: ticket.updatedAt,
+      })),
+    });
+    if (!lastRemoteSigRef.current) {
+      lastRemoteSigRef.current = signature;
+      return;
+    }
+    if (signature === lastRemoteSigRef.current) return;
+    lastRemoteSigRef.current = signature;
+    if (Date.now() < skipSseUntilRef.current) return;
+    if (Date.now() - lastSseToastRef.current < 8000) return;
+    lastSseToastRef.current = Date.now();
+    toast.info("Base de données mise à jour");
+  }, [machines, tickets, user]);
+
   const markLocalWrite = () => {
-    skipSseUntilRef.current = Date.now() + 2000;
+    skipSseUntilRef.current = Date.now() + 4000;
   };
 
   const closeEditDialog = () => {
