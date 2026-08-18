@@ -62,6 +62,7 @@ interface Props {
     machineId: number;
     category: Extract<TicketCategory, "probleme" | "flag">;
     comment: string;
+    itemId?: number;
   }) => Promise<{ ticket: Ticket; machine?: Machine }>;
   onOpenCreateTicket?: () => void;
 }
@@ -170,6 +171,7 @@ export function EditMachineDialog({
   const createLinkedTicket = async (
     category: Extract<TicketCategory, "probleme" | "flag">,
     comment: string,
+    itemId?: number,
   ) => {
     if (!onCreateTicket || !draft) return;
     setPendingLinked((n) => n + 1);
@@ -178,6 +180,7 @@ export function EditMachineDialog({
         machineId: draft.id,
         category,
         comment,
+        itemId,
       });
     } finally {
       setPendingLinked((n) => Math.max(0, n - 1));
@@ -538,7 +541,7 @@ const remove = async () => {
                 createsTicket
                 onCreateLinked={
                   onCreateTicket
-                    ? (text) => createLinkedTicket("flag", text)
+                    ? (text, itemId) => createLinkedTicket("flag", text, itemId)
                     : undefined
                 }
                 onDeleteLinked={onDeleteTicket ? deleteLinkedTicket : undefined}
@@ -553,7 +556,7 @@ const remove = async () => {
                 createsTicket
                 onCreateLinked={
                   onCreateTicket
-                    ? (text) => createLinkedTicket("probleme", text)
+                    ? (text, itemId) => createLinkedTicket("probleme", text, itemId)
                     : undefined
                 }
                 onDeleteLinked={onDeleteTicket ? deleteLinkedTicket : undefined}
@@ -691,7 +694,7 @@ function TodoEditor({
   placeholder: string;
   readOnly?: boolean;
   createsTicket?: boolean;
-  onCreateLinked?: (text: string) => Promise<void>;
+  onCreateLinked?: (text: string, itemId?: number) => Promise<void>;
   onDeleteLinked?: (ticketId: number) => Promise<void>;
 }) {
   const [text, setText] = useState("");
@@ -700,12 +703,14 @@ function TodoEditor({
   const add = async () => {
     const t = text.trim();
     if (!t || busy) return;
+    const itemId =
+      items.reduce((max, it) => Math.max(max, Number(it.id) || 0), 0) + 1;
     setText("");
-    onChange([...items, { text: t, completed: false }]);
+    onChange([...items, { id: itemId, text: t, completed: false }]);
     if (!onCreateLinked) return;
     setBusy(true);
     try {
-      await onCreateLinked(t);
+      await onCreateLinked(t, itemId);
     } catch {
       // L'item reste dans le brouillon : le PUT machine créera le ticket à l'enregistrement.
     } finally {
@@ -718,7 +723,7 @@ function TodoEditor({
       items.map((it, idx) =>
         idx === i
           ? it.completed
-            ? { text: it.text, completed: false, ticketId: it.ticketId }
+            ? { ...it, text: it.text, completed: false }
             : { ...it, completed: true, completedDate: todayFr() }
           : it,
       ),

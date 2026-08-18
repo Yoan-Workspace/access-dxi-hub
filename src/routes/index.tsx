@@ -278,10 +278,15 @@ function HomePage() {
   const updateMutation = useMutation({
     mutationFn: updateMachine,
     onMutate: markLocalWrite,
-    onSuccess: ({ machine: updated, createdTickets }) => {
-      if (createdTickets.length > 0) {
+    onSuccess: ({ machine: updated, createdTickets, tickets }) => {
+      const machineTickets = tickets.length > 0 ? tickets : createdTickets;
+      if (machineTickets.length > 0) {
         qc.setQueryData<Ticket[]>(["tickets"], (prev) => {
           const list = prev ?? [];
+          const otherMachines = list.filter(
+            (t) => Number(t.machineId) !== Number(updated.id),
+          );
+          if (tickets.length > 0) return [...otherMachines, ...tickets];
           const next = [...list];
           for (const ticket of createdTickets) {
             const index = next.findIndex((t) => Number(t.id) === Number(ticket.id));
