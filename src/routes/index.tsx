@@ -59,6 +59,7 @@ import { useTheme } from "@/lib/theme";
 import { FALCON_MP_LAB_DASHBOARD_URL } from "@/lib/labManager";
 import { afterUiSettled } from "@/lib/ui";
 import { applyTicketsToMachine, applyTicketsToMachines } from "@/lib/ticketSync";
+import { effectiveStatus, hasOpenProblems } from "@/lib/machineEtat";
 import { toast } from "sonner";
 import { DxiWaveNote } from "@/components/DxiWaveNote";
 
@@ -97,11 +98,11 @@ const monthMap: Record<string, number> = {
 };
 
 function getNextPm(machine: Machine) {
-  const lastPmDate = new Date(
-    machine.pmRef.year,
-    monthMap[machine.pmRef.month],
-    1,
-  );
+  if (!machine.pmRef?.month || machine.pmRef.year == null) return null;
+  const monthIndex = monthMap[machine.pmRef.month];
+  if (monthIndex == null) return null;
+
+  const lastPmDate = new Date(machine.pmRef.year, monthIndex, 1);
   const nextPmDate = new Date(lastPmDate);
   nextPmDate.setMonth(nextPmDate.getMonth() + 6);
 
@@ -113,8 +114,10 @@ function getNextPm(machine: Machine) {
 
 function matchesPmFilter(machine: Machine, pm: MachineFiltersState["pm"]) {
   if (pm === "all") return true;
+  const next = getNextPm(machine);
+  if (!next) return false;
 
-  const { dueDate } = getNextPm(machine);
+  const { dueDate } = next;
   const now = new Date();
   const nextMonth = new Date();
   nextMonth.setMonth(nextMonth.getMonth() + 1);
@@ -471,14 +474,12 @@ function HomePage() {
       total: syncedMachines.length,
       mp: syncedMachines.filter((m) => machineKind(m) === "MP").length,
       access: syncedMachines.filter((m) => machineKind(m) === "ACCESS").length,
-      ok: syncedMachines.filter((m) => m.status === "ok").length,
-      maintenance: syncedMachines.filter((m) => m.status === "maintenance").length,
-      danger: syncedMachines.filter((m) => m.status === "danger").length,
-      activeProblems: syncedMachines.filter((m) =>
-        m.problems.some((p) => !p.completed),
-      ).length,
-      flags: syncedMachines.filter((m) => pending(m.flags)).length,
-      improve: syncedMachines.filter((m) => pending(m.improvements)).length,
+      ok: syncedMachines.filter((m) => effectiveStatus(m) === "ok").length,
+      maintenance: syncedMachines.filter((m) => effectiveStatus(m) === "maintenance").length,
+      danger: syncedMachines.filter((m) => effectiveStatus(m) === "danger").length,
+      activeProblems: syncedMachines.filter((m) => hasOpenProblems(m)).length,
+      flags: syncedMachines.filter((m) => pending(m.flags ?? [])).length,
+      improve: syncedMachines.filter((m) => pending(m.improvements ?? [])).length,
       asdPending: syncedMachines.filter((m) => m.asdStatus !== "valid").length,
       pmCurrent: syncedMachines.filter((m) => matchesPmFilter(m, "pm-current")).length,
       pmNext: syncedMachines.filter((m) => matchesPmFilter(m, "pm-next")).length,
@@ -503,11 +504,15 @@ function HomePage() {
 
       if (filters.type === "mp" && machineKind(m) !== "MP") return false;
       if (filters.type === "access" && machineKind(m) !== "ACCESS") return false;
-      if (filters.status !== "all" && m.status !== filters.status) return false;
+      if (filters.status !== "all" && effectiveStatus(m) !== filters.status) {
+        return false;
+      }
       if (!matchesPmFilter(m, filters.pm)) return false;
 
-      if (filters.track === "flags" && !m.flags.some((f) => !f.completed)) return false;
-      if (filters.track === "improve" && !m.improvements.some((f) => !f.completed)) {
+      if (filters.track === "flags" && !(m.flags ?? []).some((f) => !f.completed)) {
+        return false;
+      }
+      if (filters.track === "improve" && !(m.improvements ?? []).some((f) => !f.completed)) {
         return false;
       }
       if (filters.track === "asd-pending" && m.asdStatus === "valid") return false;
