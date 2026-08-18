@@ -3,7 +3,7 @@ import { Plus, Trash2, Check, Ticket as TicketIcon } from "lucide-react";
 import type { Machine, Ticket, TicketCategory, TodoItem } from "@/lib/types";
 import { machineKind } from "@/lib/types";
 import { getMachineWave, inferSerialFromName } from "@/lib/machineWave";
-import { applyTicketsToMachine, mergeNewTicketItems } from "@/lib/ticketSync";
+import { applyTicketsToMachine, linkTicketIdsPreserveText, mergeNewTicketItems } from "@/lib/ticketSync";
 import { MachineTicketsPanel } from "@/components/MachineTicketsPanel";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -142,9 +142,11 @@ export function EditMachineDialog({
 
   useEffect(() => {
     if (!open) return;
-    setDraft((current) =>
-      current ? mergeNewTicketItems(current, tickets) : current,
-    );
+    setDraft((current) => {
+      if (!current) return current;
+      const linked = linkTicketIdsPreserveText(current, tickets);
+      return mergeNewTicketItems(linked, tickets);
+    });
   }, [open, tickets]);
 
   useEffect(() => {
@@ -179,15 +181,17 @@ export function EditMachineDialog({
   const save = async () => {
   if (!draft) return;
 
+  const linked = linkTicketIdsPreserveText(draft, tickets);
+
   // La date de dernière intervention est mise à jour automatiquement à
   // l'enregistrement, sauf si elle a été renseignée manuellement.
   const payload = {
     ...(lastDateEdited
-      ? draft
-      : { ...draft, lastDate: new Date().toISOString().slice(0, 19) }),
+      ? linked
+      : { ...linked, lastDate: new Date().toISOString().slice(0, 19) }),
     serialNumber:
       kind === "MP"
-        ? (draft.serialNumber ?? inferSerialFromName(draft.name))
+        ? (linked.serialNumber ?? inferSerialFromName(linked.name))
         : undefined,
   };
 
