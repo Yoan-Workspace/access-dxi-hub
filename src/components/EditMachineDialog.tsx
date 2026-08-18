@@ -118,12 +118,14 @@ export function EditMachineDialog({
   onDelete,
   onUpdateTicket,
   onDeleteTicket,
+  onCreateTicket,
   onOpenCreateTicket,
 }: Props) {
   const [draft, setDraft] = useState<Machine | null>(null);
   const [tab, setTab] = useState<EditMachineTab>(initialTab);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [pendingLinked, setPendingLinked] = useState(0);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [lastDateEdited, setLastDateEdited] = useState(false);
 
@@ -132,12 +134,14 @@ export function EditMachineDialog({
       setDraft(null);
       setConfirmDelete(false);
       setLastDateEdited(false);
+      setPendingLinked(0);
       return;
     }
 
     setDraft(structuredClone(applyTicketsToMachine(machine, tickets, { pruneMissing: ticketsReady })));
     setConfirmDelete(false);
     setLastDateEdited(false);
+    setPendingLinked(0);
     // Snapshot at open: do not resync from parent while the user is typing.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, machine?.id]);
@@ -162,6 +166,33 @@ export function EditMachineDialog({
 
   const set = <K extends keyof Machine>(k: K, v: Machine[K]) =>
     setDraft((d) => (d ? { ...d, [k]: v } : d));
+
+  const createLinkedTicket = async (
+    category: Extract<TicketCategory, "probleme" | "flag">,
+    comment: string,
+  ) => {
+    if (!onCreateTicket || !draft) return;
+    setPendingLinked((n) => n + 1);
+    try {
+      await onCreateTicket({
+        machineId: draft.id,
+        category,
+        comment,
+      });
+    } finally {
+      setPendingLinked((n) => Math.max(0, n - 1));
+    }
+  };
+
+  const deleteLinkedTicket = async (ticketId: number) => {
+    if (!onDeleteTicket) return;
+    setPendingLinked((n) => n + 1);
+    try {
+      await onDeleteTicket(ticketId);
+    } finally {
+      setPendingLinked((n) => Math.max(0, n - 1));
+    }
+  };
 
   const setPmRef = (patch: Partial<NonNullable<Machine["pmRef"]>>) => {
     setDraft((d) => {
@@ -505,6 +536,12 @@ const remove = async () => {
                 placeholder="Nouveau flag…"
                 readOnly={readOnly}
                 createsTicket
+                onCreateLinked={
+                  onCreateTicket
+                    ? (text) => createLinkedTicket("flag", text)
+                    : undefined
+                }
+                onDeleteLinked={onDeleteTicket ? deleteLinkedTicket : undefined}
               />
             </TabsContent>
             <TabsContent value="problems" className="mt-0">
@@ -514,6 +551,12 @@ const remove = async () => {
                 placeholder="Nouveau problème…"
                 readOnly={readOnly}
                 createsTicket
+                onCreateLinked={
+                  onCreateTicket
+                    ? (text) => createLinkedTicket("probleme", text)
+                    : undefined
+                }
+                onDeleteLinked={onDeleteTicket ? deleteLinkedTicket : undefined}
               />
             </TabsContent>
             <TabsContent value="repairs" className="mt-0">
@@ -578,14 +621,18 @@ const remove = async () => {
             <Button
               variant="ghost"
               onClick={() => onOpenChange(false)}
-              disabled={saving || deleting}
+              disabled={saving || deleting || pendingLinked > 0}
               className="flex-1 sm:flex-none"
             >
               {readOnly ? "Fermer" : "Annuler"}
             </Button>
             {!readOnly && (
-            <Button onClick={save} disabled={saving || deleting} className="flex-1 sm:flex-none">
-              {saving ? "Enregistrement…" : "Enregistrer"}
+            <Button
+              onClick={save}
+              disabled={saving || deleting || pendingLinked > 0}
+              className="flex-1 sm:flex-none"
+            >
+              {saving ? "Enregistrement…" : pendingLinked > 0 ? "Ticket…" : "Enregistrer"}
             </Button>
             )}
           </div>
@@ -636,20 +683,34 @@ function TodoEditor({
   placeholder,
   readOnly = false,
   createsTicket = false,
+  onCreateLinked,
+  onDeleteLinked,
 }: {
   items: TodoItem[];
   onChange: (items: TodoItem[]) => void;
   placeholder: string;
   readOnly?: boolean;
   createsTicket?: boolean;
+  onCreateLinked?: (text: string) => Promise<void>;
+  onDeleteLinked?: (ticketId: number) => Promise<void>;
 }) {
   const [text, setText] = useState("");
+  const [busy, setBusy] = useState(false);
 
-  const add = () => {
+  const add = async () => {
     const t = text.trim();
-    if (!t) return;
-    onChange([...items, { text: t, completed: false }]);
+    if (!t || busy) return;
     setText("");
+    onChange([...items, { text: t, completed: false }]);
+    if (!onCreateLinked) return;
+    setBusy(true);
+    try {
+      await onCreateLinked(t);
+    } catch {
+      // L'item reste dans le brouillon : le PUT machine créera le ticket à l'enregistrement.
+    } finally {
+      setBusy(false);
+    }
   };
 
   const toggle = (i: number) => {
@@ -664,7 +725,13 @@ function TodoEditor({
     );
   };
 
-  const remove = (i: number) => onChange(items.filter((_, idx) => idx !== i));
+  const remove = (i: number) => {
+    const item = items[i];
+    onChange(items.filter((_, idx) => idx !== i));
+    if (item?.ticketId != null && onDeleteLinked) {
+      void onDeleteLinked(item.ticketId);
+    }
+  };
   const updateText = (i: number, t: string) =>
     onChange(items.map((it, idx) => (idx === i ? { ...it, text: t } : it)));
 
@@ -672,7 +739,8 @@ function TodoEditor({
     <div className="space-y-3">
       {createsTicket && !readOnly && (
         <p className="text-[11px] text-muted-foreground">
-          Un ticket lié est créé à l’enregistrement. Modifier le texte met à jour le ticket.
+          Un ticket lié est créé tout de suite (notification Teams). Modifier le texte puis
+          Enregistrer met à jour le ticket.
         </p>
       )}
       {!readOnly && (
@@ -681,15 +749,16 @@ function TodoEditor({
           value={text}
           onChange={(e) => setText(e.target.value)}
           placeholder={placeholder}
+          disabled={busy}
           onKeyDown={(e) => {
             if (e.key === "Enter") {
               e.preventDefault();
-              add();
+              void add();
             }
           }}
         />
-        <Button onClick={add} type="button" variant="secondary">
-          <Plus className="h-4 w-4" /> Ajouter
+        <Button onClick={() => void add()} type="button" variant="secondary" disabled={busy}>
+          <Plus className="h-4 w-4" /> {busy ? "Ticket…" : "Ajouter"}
         </Button>
       </div>
       )}
