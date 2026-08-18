@@ -510,41 +510,48 @@ function closeMatchingOpenTickets(data, machineId, category, text, closedBy) {
   return changed;
 }
 
-function assignMissingTicketIds(nextList, prevList, data, machineId, category) {
+function inheritSameRowTicketId(nextList, prevList) {
   const taken = new Set(
     nextList
       .filter((item) => item.ticketId != null)
       .map((item) => Number(item.ticketId)),
   );
-  const unusedPrev = prevList.filter(
-    (item) => item.ticketId == null || !taken.has(Number(item.ticketId)),
-  );
-  let prevCursor = 0;
 
-  for (const item of nextList) {
+  for (let i = 0; i < nextList.length; i++) {
+    const item = nextList[i];
     if (item.ticketId != null) continue;
-
-    const prev = unusedPrev[prevCursor++];
-    if (prev?.ticketId != null) {
-      item.ticketId = Number(prev.ticketId);
-      taken.add(Number(item.ticketId));
-      continue;
-    }
-
-    const oldText = prev?.text;
-    const ticket = data.tickets.find(
-      (entry) =>
-        Number(entry.machineId) === Number(machineId) &&
-        entry.category === category &&
-        !taken.has(Number(entry.id)) &&
-        (entry.comment === item.text ||
-          (oldText != null && entry.comment === oldText)),
-    );
-    if (ticket) {
-      item.ticketId = ticket.id;
-      taken.add(Number(ticket.id));
-    }
+    const prev = prevList[i];
+    if (prev?.ticketId == null) continue;
+    const prevId = Number(prev.ticketId);
+    if (taken.has(prevId)) continue;
+    item.ticketId = prevId;
+    taken.add(prevId);
   }
+}
+
+function createLinkedTicket(data, machine, user, category, text, completed, now) {
+  const ticket = {
+    id: nextId(data.tickets),
+    machineId: Number(machine.id),
+    category,
+    comment: text,
+    status: completed ? "closed" : "open",
+    createdBy: user.id,
+    createdByName: user.displayName,
+    createdAt: now,
+    updatedAt: now,
+  };
+  if (completed) {
+    ticket.closedAt = now;
+    ticket.closedBy = user.displayName;
+  }
+  data.tickets.push(ticket);
+  console.log(
+    `Ticket #${ticket.id} créé (${category}) pour ${machine.name}${
+      ticket.status === "open" ? " — notification Teams" : ""
+    }`,
+  );
+  return ticket;
 }
 
 function syncMachineLinkedTickets(data, previous, machine, user) {
@@ -558,7 +565,8 @@ function syncMachineLinkedTickets(data, previous, machine, user) {
   for (const [listKey, category] of pairs) {
     const nextList = Array.isArray(machine[listKey]) ? machine[listKey] : [];
     const prevList = Array.isArray(previous[listKey]) ? previous[listKey] : [];
-    assignMissingTicketIds(nextList, prevList, data, machine.id, category);
+    inheritSameRowTicketId(nextList, prevList);
+
     const nextIds = new Set(
       nextList
         .filter((item) => item.ticketId != null)
@@ -578,32 +586,25 @@ function syncMachineLinkedTickets(data, previous, machine, user) {
       const text = String(item.text ?? "").trim();
       if (!text) continue;
 
-      if (item.ticketId == null) {
-        const ticket = {
-          id: nextId(data.tickets),
-          machineId: Number(machine.id),
+      let ticket =
+        item.ticketId != null
+          ? data.tickets.find((entry) => Number(entry.id) === Number(item.ticketId))
+          : null;
+
+      if (!ticket) {
+        ticket = createLinkedTicket(
+          data,
+          machine,
+          user,
           category,
-          comment: text,
-          status: item.completed ? "closed" : "open",
-          createdBy: user.id,
-          createdByName: user.displayName,
-          createdAt: now,
-          updatedAt: now,
-        };
-        if (item.completed) {
-          ticket.closedAt = now;
-          ticket.closedBy = user.displayName;
-        }
-        data.tickets.push(ticket);
+          text,
+          Boolean(item.completed),
+          now,
+        );
         item.ticketId = ticket.id;
         if (ticket.status === "open") created.push({ ticket, machine });
         continue;
       }
-
-      const ticket = data.tickets.find(
-        (entry) => Number(entry.id) === Number(item.ticketId),
-      );
-      if (!ticket) continue;
 
       if (ticket.comment !== text) {
         ticket.comment = text;
@@ -1230,7 +1231,10 @@ app.put(
       notifyTeamsTicketOpened(created);
     }
 
-    res.json(machine);
+    res.json({
+      machine,
+      createdTickets: createdTickets.map((entry) => entry.ticket),
+    });
   },
 );
 
@@ -1258,9 +1262,18 @@ app.post(
       return res.status(409).json({ error: "Une machine avec ce nom existe déjà" });
     }
 
+    const createdTickets = syncMachineLinkedTickets(
+      data,
+      { flags: [], problems: [] },
+      newMachine,
+      req.user,
+    );
     data.machines.push(newMachine);
     writeData(data);
     notifyClients();
+    for (const created of createdTickets) {
+      notifyTeamsTicketOpened(created);
+    }
 
     res.status(201).json(newMachine);
   },

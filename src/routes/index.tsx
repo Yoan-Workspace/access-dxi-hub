@@ -154,7 +154,7 @@ function HomePage() {
     enabled: Boolean(user),
     refetchInterval: user ? 10_000 : false,
   });
-  const { data: tickets = [] } = useQuery({
+  const { data: tickets = [], isFetched: ticketsFetched } = useQuery({
     queryKey: ["tickets"],
     queryFn: () => fetchTickets(),
     enabled: Boolean(user) && API_CONFIGURED,
@@ -199,8 +199,11 @@ function HomePage() {
 
   /** Machines avec problems/flags synchronisés depuis les tickets */
   const syncedMachines = useMemo(
-    () => applyTicketsToMachines(machines, tickets),
-    [machines, tickets],
+    () =>
+      applyTicketsToMachines(machines, tickets, {
+        pruneMissing: ticketsFetched,
+      }),
+    [machines, tickets, ticketsFetched],
   );
 
   const editingTickets = editing
@@ -275,12 +278,30 @@ function HomePage() {
   const updateMutation = useMutation({
     mutationFn: updateMachine,
     onMutate: markLocalWrite,
-    onSuccess: (updated) => {
+    onSuccess: ({ machine: updated, createdTickets }) => {
       qc.setQueryData<Machine[]>(["machines"], (prev) =>
         prev?.map((m) => (m.id === updated.id ? updated : m)) ?? prev,
       );
+      if (createdTickets.length > 0) {
+        qc.setQueryData<Ticket[]>(["tickets"], (prev) => {
+          const list = prev ?? [];
+          const next = [...list];
+          for (const ticket of createdTickets) {
+            const index = next.findIndex((t) => Number(t.id) === Number(ticket.id));
+            if (index === -1) next.push(ticket);
+            else next[index] = ticket;
+          }
+          return next;
+        });
+      }
       void qc.invalidateQueries({ queryKey: ["tickets"] });
-      toast.success("Machine mise à jour");
+      toast.success(
+        createdTickets.length > 0
+          ? createdTickets.length === 1
+            ? "Machine mise à jour · ticket créé"
+            : `Machine mise à jour · ${createdTickets.length} tickets créés`
+          : "Machine mise à jour",
+      );
       closeEditDialog();
     },
     onError: (e) => toast.error(`Échec de la sauvegarde : ${(e as Error).message}`),
@@ -462,7 +483,7 @@ function HomePage() {
   };
 
   const openEdit = (machine: Machine, tab: EditMachineTab = "general") => {
-    setEditing(applyTicketsToMachine(machine, tickets));
+    setEditing(applyTicketsToMachine(machine, tickets, { pruneMissing: ticketsFetched }));
     setEditTab(tab);
   };
 
@@ -703,6 +724,7 @@ function HomePage() {
         initialTab={editTab}
         readOnly={readOnly}
         tickets={editingTickets}
+        ticketsReady={ticketsFetched}
         onOpenChange={(o) => {
           if (!o) {
             setEditing(null);

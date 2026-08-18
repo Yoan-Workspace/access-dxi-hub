@@ -49,6 +49,7 @@ interface Props {
   initialTab?: EditMachineTab;
   readOnly?: boolean;
   tickets?: Ticket[];
+  ticketsReady?: boolean;
   onOpenChange: (open: boolean) => void;
   onSave: (m: Machine) => Promise<void> | void;
   onDelete?: (id: number) => Promise<void> | void;
@@ -111,6 +112,7 @@ export function EditMachineDialog({
   initialTab = "general",
   readOnly = false,
   tickets = [],
+  ticketsReady = true,
   onOpenChange,
   onSave,
   onDelete,
@@ -133,7 +135,7 @@ export function EditMachineDialog({
       return;
     }
 
-    setDraft(structuredClone(applyTicketsToMachine(machine, tickets)));
+    setDraft(structuredClone(applyTicketsToMachine(machine, tickets, { pruneMissing: ticketsReady })));
     setConfirmDelete(false);
     setLastDateEdited(false);
     // Snapshot at open: do not resync from parent while the user is typing.
@@ -502,6 +504,7 @@ const remove = async () => {
                 onChange={(items) => set("flags", items)}
                 placeholder="Nouveau flag…"
                 readOnly={readOnly}
+                createsTicket
               />
             </TabsContent>
             <TabsContent value="problems" className="mt-0">
@@ -510,6 +513,7 @@ const remove = async () => {
                 onChange={(items) => set("problems", items)}
                 placeholder="Nouveau problème…"
                 readOnly={readOnly}
+                createsTicket
               />
             </TabsContent>
             <TabsContent value="repairs" className="mt-0">
@@ -631,11 +635,13 @@ function TodoEditor({
   onChange,
   placeholder,
   readOnly = false,
+  createsTicket = false,
 }: {
   items: TodoItem[];
   onChange: (items: TodoItem[]) => void;
   placeholder: string;
   readOnly?: boolean;
+  createsTicket?: boolean;
 }) {
   const [text, setText] = useState("");
 
@@ -664,6 +670,11 @@ function TodoEditor({
 
   return (
     <div className="space-y-3">
+      {createsTicket && !readOnly && (
+        <p className="text-[11px] text-muted-foreground">
+          Un ticket lié est créé à l’enregistrement. Modifier le texte met à jour le ticket.
+        </p>
+      )}
       {!readOnly && (
       <div className="flex gap-2">
         <Input
@@ -720,6 +731,14 @@ function TodoEditor({
                   it.completed && "line-through",
                 )}
               />
+              {it.ticketId != null && (
+                <span
+                  className="shrink-0 text-[10px] font-medium text-muted-foreground"
+                  title={`Ticket #${it.ticketId}`}
+                >
+                  #{it.ticketId}
+                </span>
+              )}
               {it.completed && it.completedDate && (
                 <span className="shrink-0 text-xs text-muted-foreground">
                   {it.completedDate}
