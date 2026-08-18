@@ -708,21 +708,8 @@ function detectChanges(oldData, newData) {
 }
 
 function setupDataWatch() {
-  const dataFile = path.resolve(DATA_PATH);
-  const dataDir = path.dirname(dataFile);
-  const dataName = path.basename(dataFile);
-  let debounce;
-
-  try {
-    fs.watch(dataDir, (_event, filename) => {
-      if (filename && filename !== dataName) return;
-      if (Date.now() - lastOwnWriteAt < 1500) return;
-      clearTimeout(debounce);
-      debounce = setTimeout(() => notifyClients(), 400);
-    });
-  } catch (error) {
-    console.warn("Surveillance du fichier données impossible:", error.message);
-  }
+  // fs.watch skipped: Box/Windows network drives emit uncaught watcher errors (errno -4094).
+  // Live updates already go through notifyClients() on writes and frontend polling every 10s.
 }
 
 //
