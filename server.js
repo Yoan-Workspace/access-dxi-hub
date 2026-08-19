@@ -4,6 +4,7 @@ import cors from "cors";
 import path from "path";
 import crypto from "crypto";
 import { fileURLToPath } from "url";
+import sharp from "sharp";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -747,6 +748,99 @@ function syncOpenTicketsIntoMachines(data) {
   return changed;
 }
 
+// ---------------------------------------------------------------------------
+// Live color detection — analyse image DXI pour détecter rouge/vert
+// ---------------------------------------------------------------------------
+
+const LAB_MANAGER_HOST = "http://cciaappserver01";
+const LIVE_STATUS_CACHE = new Map();
+const LIVE_POLL_INTERVAL_MS = 5 * 60 * 1000;
+
+function dxiImageUrl(serialNumber) {
+  return `${LAB_MANAGER_HOST}/LabManager/Content/Images/DXI${serialNumber}.png`;
+}
+
+async function detectColorFromImage(imageUrl) {
+  const response = await fetch(imageUrl, { signal: AbortSignal.timeout(15000) });
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  const buffer = Buffer.from(await response.arrayBuffer());
+
+  const { width, height } = await sharp(buffer).metadata();
+  if (!width || !height) throw new Error("Cannot read image dimensions");
+
+  // Zone bas-gauche : x 30→230, y (height-180)→(height-30)
+  const regionLeft = 30;
+  const regionTop = Math.max(0, height - 180);
+  const regionWidth = Math.min(200, width - regionLeft);
+  const regionHeight = Math.min(150, height - regionTop);
+
+  const { data: pixels } = await sharp(buffer)
+    .extract({ left: regionLeft, top: regionTop, width: regionWidth, height: regionHeight })
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+
+  let totalR = 0, totalG = 0, totalB = 0;
+  const pixelCount = pixels.length / 3;
+  for (let i = 0; i < pixels.length; i += 3) {
+    totalR += pixels[i];
+    totalG += pixels[i + 1];
+    totalB += pixels[i + 2];
+  }
+
+  const avgR = totalR / pixelCount;
+  const avgG = totalG / pixelCount;
+  const avgB = totalB / pixelCount;
+
+  if (avgR > avgG * 1.4 && avgR > avgB * 1.3) return "red";
+  if (avgG > avgR * 1.4 && avgG > avgB * 1.3) return "green";
+  if (avgB > avgR * 1.3 && avgB > avgG * 1.3) return "blue";
+  return "unknown";
+}
+
+function serialNumberForMachine(machine) {
+  if (machine.serialNumber) return String(machine.serialNumber);
+  const match = machine.name.match(/^mp\s*(\d+)/i);
+  if (!match) return null;
+  return `300${match[1].padStart(3, "0")}`;
+}
+
+async function refreshLiveStatus(machine) {
+  const serial = serialNumberForMachine(machine);
+  if (!serial) return null;
+
+  const url = dxiImageUrl(serial);
+  try {
+    const color = await detectColorFromImage(url);
+    const entry = { color, checkedAt: new Date().toISOString(), error: null };
+    LIVE_STATUS_CACHE.set(machine.id, entry);
+    return entry;
+  } catch (err) {
+    const entry = {
+      color: LIVE_STATUS_CACHE.get(machine.id)?.color ?? "unknown",
+      checkedAt: new Date().toISOString(),
+      error: err.message,
+    };
+    LIVE_STATUS_CACHE.set(machine.id, entry);
+    return entry;
+  }
+}
+
+function startLiveStatusPolling() {
+  async function poll() {
+    try {
+      const data = ensureDataShape(readData());
+      const mpMachines = data.machines.filter((m) => isMpMachine(m));
+      for (const machine of mpMachines) {
+        await refreshLiveStatus(machine);
+      }
+    } catch (err) {
+      console.warn("Live status polling error:", err.message);
+    }
+  }
+  poll();
+  setInterval(poll, LIVE_POLL_INTERVAL_MS);
+}
+
 function detectChanges(oldData, newData) {
   const events = [];
 
@@ -1249,6 +1343,34 @@ app.get("/api/events", (req, res) => {
   });
 });
 
+app.get("/api/machines/:id/live-status", authMiddleware, async (req, res) => {
+  const id = Number(req.params.id);
+  const data = ensureDataShape(readData());
+  const machine = findMachine(data, id);
+  if (!machine) return res.status(404).json({ error: "Machine introuvable" });
+  if (!isMpMachine(machine)) {
+    return res.json({ color: "unknown", checkedAt: null, error: "Not a DXI machine" });
+  }
+
+  const cached = LIVE_STATUS_CACHE.get(id);
+  const forceRefresh = req.query.refresh === "true";
+
+  if (cached && !forceRefresh) {
+    return res.json(cached);
+  }
+
+  const result = await refreshLiveStatus(machine);
+  res.json(result ?? { color: "unknown", checkedAt: null, error: "No serial number" });
+});
+
+app.get("/api/machines/live-status", authMiddleware, (_req, res) => {
+  const result = {};
+  for (const [machineId, entry] of LIVE_STATUS_CACHE.entries()) {
+    result[machineId] = entry;
+  }
+  res.json(result);
+});
+
 app.get("/api/machines", authMiddleware, (req, res) => {
   const data = ensureDataShape(readData());
   res.json({ machines: data.machines });
@@ -1423,4 +1545,6 @@ app.listen(PORT, () => {
   }
 
   scheduleMonthlyMaintCheck();
+  startLiveStatusPolling();
+  console.log(`Détection couleur live : polling toutes les ${LIVE_POLL_INTERVAL_MS / 1000}s`);
 });

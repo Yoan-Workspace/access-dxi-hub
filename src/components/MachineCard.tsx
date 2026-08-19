@@ -154,11 +154,13 @@ export function MachineCard({
   machine,
   ticketsOpen = 0,
   ticketsClosed = 0,
+  liveColor,
   onEdit,
 }: {
   machine: Machine;
   ticketsOpen?: number;
   ticketsClosed?: number;
+  liveColor?: "red" | "green" | "blue" | "unknown";
   onEdit: (tab?: EditMachineTab) => void;
 }) {
   const kind = machineKind(machine);
@@ -244,16 +246,32 @@ export function MachineCard({
             <span>SW {machine.sw}</span>
 
             {liveUrl && (
-              <a
-                href={liveUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={(e) => e.stopPropagation()}
-                className="inline-flex items-center gap-1 font-medium text-mp transition hover:text-mp/80 hover:underline"
-              >
-                <ExternalLink className="h-3 w-3" />
-                Voir en direct
-              </a>
+              <span className="inline-flex items-center gap-1.5">
+                <a
+                  href={liveUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={(e) => e.stopPropagation()}
+                  className="inline-flex items-center gap-1 font-medium text-mp transition hover:text-mp/80 hover:underline"
+                >
+                  <ExternalLink className="h-3 w-3" />
+                  Voir en direct
+                </a>
+                {liveColor && liveColor !== "unknown" && (
+                  <span
+                    title={
+                      liveColor === "red" ? "Problème" :
+                      liveColor === "blue" ? "Maintenance" : "OK"
+                    }
+                    className={cn(
+                      "inline-block h-2.5 w-2.5 rounded-full ring-2 ring-background",
+                      liveColor === "red" && "bg-danger animate-pulse",
+                      liveColor === "blue" && "bg-maintenance",
+                      liveColor === "green" && "bg-success",
+                    )}
+                  />
+                )}
+              </span>
             )}
           </div>
         </div>

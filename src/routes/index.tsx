@@ -39,6 +39,7 @@ import {
   fetchTickets,
   fetchUsers,
   getApiBase,
+  fetchAllLiveStatus,
   resetUserPassword,
   updateMachine,
   updateTicket,
@@ -159,6 +160,13 @@ function HomePage() {
     queryFn: () => fetchTickets(),
     enabled: Boolean(user) && API_CONFIGURED,
     refetchInterval: user ? 10_000 : false,
+  });
+
+  const { data: liveStatuses = {} } = useQuery({
+    queryKey: ["live-status"],
+    queryFn: fetchAllLiveStatus,
+    enabled: Boolean(user) && API_CONFIGURED,
+    refetchInterval: 5 * 60 * 1000,
   });
 
   const [filters, setFilters] = useState<MachineFiltersState>(defaultFilters);
@@ -710,6 +718,7 @@ function HomePage() {
                     machine={m}
                     ticketsOpen={ticketStats?.open ?? 0}
                     ticketsClosed={ticketStats?.closed ?? 0}
+                    liveColor={liveStatuses[m.id]?.color}
                     onEdit={(tab) => openEdit(m, tab)}
                   />
                 );

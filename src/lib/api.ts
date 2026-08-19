@@ -238,3 +238,14 @@ export async function resetUserPassword(id: number, password: string): Promise<v
     body: JSON.stringify({ password }),
   });
 }
+
+export interface LiveStatus {
+  color: "red" | "green" | "blue" | "unknown";
+  checkedAt: string | null;
+  error: string | null;
+}
+
+export async function fetchAllLiveStatus(): Promise<Record<number, LiveStatus>> {
+  if (!API_CONFIGURED) return {};
+  return (await apiFetch("/api/machines/live-status")) as Record<number, LiveStatus>;
+}
