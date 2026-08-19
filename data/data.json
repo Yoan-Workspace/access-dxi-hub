@@ -3,46 +3,65 @@
     {
       "id": 1,
       "name": "MP11",
-      "lastDate": "2026-06-04T16:08:16",
+      "lastDate": "2026-08-07T12:44:31",
       "flags": [],
       "pmRef": {
-        "period": 12,
-        "month": "Janvier",
+        "period": 6,
+        "month": "Août",
         "year": 2026
       },
-      "sw": "1.20.0.22",
-      "status": "danger",
+      "sw": "1.24.0.22",
+      "status": "ok",
       "adam": "fonctionnelle",
       "improvements": [
         {
           "text": "WASH TOWER 1",
           "completed": true,
           "completedDate": "04/06/2026"
+        },
+        {
+          "text": "Analytic PnP collet a nettoyer",
+          "completed": true,
+          "completedDate": "09/07/2026"
+        },
+        {
+          "text": "Analytic PnP collet",
+          "completed": true,
+          "completedDate": "04/08/2026"
+        },
+        {
+          "text": "Tray gripper",
+          "completed": true,
+          "completedDate": "04/08/2026"
+        },
+        {
+          "text": "Pièce pour capteur fermeture porte TIPS",
+          "completed": false
         }
       ],
       "problems": [
         {
           "text": "PELLETIER X4",
-          "completed": false
+          "completed": true,
+          "completedDate": "09/07/2026"
         }
       ],
       "repairs": [],
       "localisation": "Thermal",
-      "asdStatus": "pending",
-      "monthlyMaint": "not_done",
-      "serialNumber": 300011
+      "asdStatus": "valid",
+      "monthlyMaint": "done"
     },
     {
       "id": 2,
       "name": "MP12",
-      "lastDate": "2026-06-10T10:30:12",
+      "lastDate": "2026-08-14T14:40:26",
       "flags": [],
       "pmRef": {
-        "period": 6,
-        "month": "Février",
+        "period": 12,
+        "month": "Juillet",
         "year": 2026
       },
-      "sw": "1.20.0.22",
+      "sw": "1.24.0.22",
       "status": "ok",
       "adam": "fonctionnelle",
       "improvements": [
@@ -55,6 +74,16 @@
           "text": "ECRAN TACHTILE",
           "completed": true,
           "completedDate": "10/06/2026"
+        },
+        {
+          "text": "SCANNETTE",
+          "completed": true,
+          "completedDate": "06/08/2026"
+        },
+        {
+          "text": "DISQUE DUR EXTERNE BACKUP",
+          "completed": true,
+          "completedDate": "06/08/2026"
         }
       ],
       "problems": [],
@@ -68,7 +97,7 @@
     {
       "id": 3,
       "name": "MP16",
-      "lastDate": "2026-05-28T11:31:44",
+      "lastDate": "2026-08-07T09:15:53",
       "flags": [
         {
           "text": "WWS",
@@ -80,17 +109,23 @@
         "month": "Mars",
         "year": 2026
       },
-      "sw": "1.20.0.22",
+      "sw": "1.24.0.22",
       "status": "ok",
       "adam": "fonctionnelle",
       "improvements": [
         {
           "text": "TIPS GRIPPER",
+          "completed": true,
+          "completedDate": "09/07/2026"
+        },
+        {
+          "text": "PELLETIER ZONE 1 (achat effectué) attente récepetion",
           "completed": false
         },
         {
-          "text": "PELLETIER ZONZ 1",
-          "completed": false
+          "text": "RSM Gripper timing / Alignements",
+          "completed": true,
+          "completedDate": "05/08/2026"
         }
       ],
       "problems": [
@@ -98,6 +133,11 @@
           "text": "MAIN DISTRIBUTION BOARD",
           "completed": true,
           "completedDate": "21/05/2026"
+        },
+        {
+          "text": "pipetteur 4 capteur ok axe y remplacer board",
+          "completed": true,
+          "completedDate": "07/08/2026"
         }
       ],
       "repairs": [
@@ -115,68 +155,102 @@
       "localisation": "BSL2",
       "asdStatus": "fail_precision",
       "pmHistory": [],
-      "monthlyMaint": "not_done",
-      "serialNumber": 300016
+      "monthlyMaint": "done"
     },
     {
       "id": 4,
       "name": "MP31",
-      "lastDate": "2026-06-11T09:49:34",
+      "lastDate": "2026-08-18T11:19:16",
       "flags": [],
       "pmRef": {
-        "period": 6,
-        "month": "Janvier",
+        "period": 12,
+        "month": "Juin",
         "year": 2026
       },
-      "sw": "1.20.0.22",
-      "status": "maintenance",
+      "sw": "1.24.0.22",
+      "status": "ok",
       "adam": "fonctionnelle",
       "improvements": [
         {
-          "text": "REAGENT STORAGE",
+          "text": "REAGENT STORAGE problème de niveau",
+          "completed": true,
+          "completedDate": "12/08/2026"
+        },
+        {
+          "text": "tray gripper realignement à faire loader failed",
+          "completed": true,
+          "completedDate": "12/08/2026"
+        },
+        {
+          "text": "SPU Camera detection cup",
+          "completed": true,
+          "completedDate": "12/08/2026"
+        },
+        {
+          "text": "Reagent Peletiers ZONE 2, ZONE3 refroidissent pas. --> commande faite.",
           "completed": false
         }
       ],
-      "problems": [],
+      "problems": [
+        {
+          "text": "Low Volume ASD Failed",
+          "completed": true,
+          "ticketId": 3,
+          "completedDate": "13/08/2026"
+        },
+        {
+          "text": "RSM calibration a faire par Yoan",
+          "completed": false,
+          "ticketId": 5
+        }
+      ],
       "repairs": [],
       "localisation": "BSL2",
       "asdStatus": "fail_precision",
-      "monthlyMaint": "not_done",
+      "monthlyMaint": "done",
       "pmHistory": [],
       "serialNumber": 300031
     },
     {
       "id": 5,
       "name": "MP34",
-      "lastDate": "2026-05-26T17:36:53",
+      "lastDate": "2026-08-19T08:53:32",
       "flags": [],
       "pmRef": {
         "period": 12,
         "month": "Mars",
         "year": 2026
       },
-      "sw": "1.20.0.22",
+      "sw": "1.24.0.22",
       "status": "ok",
       "adam": "fonctionnelle",
       "improvements": [],
-      "problems": [],
+      "problems": [
+        {
+          "text": "Problème detection cup 2ml/0.5ml - insert new job file mod 13247 - D37874 spu jobfile",
+          "completed": true,
+          "ticketId": 6,
+          "id": 1,
+          "completedDate": "19/08/2026"
+        }
+      ],
       "repairs": [],
       "localisation": "BSL2",
       "asdStatus": "valid",
-      "monthlyMaint": "not_done",
+      "monthlyMaint": "done",
       "serialNumber": 300034
     },
     {
       "id": 6,
       "name": "MP38",
-      "lastDate": "2026-06-05T11:27:27",
+      "lastDate": "2026-08-10T13:26:51",
       "flags": [],
       "pmRef": {
         "period": 6,
         "month": "Avril",
         "year": 2026
       },
-      "sw": "1.20.0.22",
+      "sw": "1.24.0.22",
       "status": "ok",
       "adam": "fonctionnelle",
       "improvements": [
@@ -184,6 +258,16 @@
           "text": "Calibrer fluid QS",
           "completed": true,
           "completedDate": "03/06/2026"
+        },
+        {
+          "text": "Empty tray gripper à régler",
+          "completed": true,
+          "completedDate": "10/08/2026"
+        },
+        {
+          "text": "SPU Camera detection cup",
+          "completed": true,
+          "completedDate": "10/08/2026"
         }
       ],
       "problems": [],
@@ -196,13 +280,12 @@
       ],
       "localisation": "BSL2",
       "asdStatus": "valid",
-      "monthlyMaint": "done",
-      "serialNumber": 300038
+      "monthlyMaint": "done"
     },
     {
       "id": 7,
       "name": "MP40",
-      "lastDate": "2026-06-02T12:41:30",
+      "lastDate": "2026-08-18T14:06:45",
       "flags": [
         {
           "text": "TRP, P4",
@@ -214,7 +297,7 @@
         "month": "Juin",
         "year": 2026
       },
-      "sw": "1.20.0.22",
+      "sw": "1.24.0.22",
       "status": "ok",
       "adam": "fonctionnelle",
       "improvements": [],
@@ -235,35 +318,40 @@
     {
       "id": 8,
       "name": "MP60",
-      "lastDate": "2026-05-26T17:37:12",
+      "lastDate": "2026-08-13T07:05:00",
       "flags": [],
       "pmRef": {
         "period": 6,
         "month": "Mars",
         "year": 2026
       },
-      "sw": "1.20.0.22",
+      "sw": "1.24.0.22",
       "status": "ok",
       "adam": "fonctionnelle",
-      "improvements": [],
+      "improvements": [
+        {
+          "text": "Whashwheel languette noir HS",
+          "completed": true,
+          "completedDate": "21/07/2026"
+        }
+      ],
       "problems": [],
       "repairs": [],
       "localisation": "BSL2",
       "asdStatus": "fail_precision",
-      "monthlyMaint": "not_done",
-      "serialNumber": 300060
+      "monthlyMaint": "done"
     },
     {
       "id": 9,
       "name": "MP80",
-      "lastDate": "2026-05-26T17:37:16",
+      "lastDate": "2026-08-18T14:23:07",
       "flags": [],
       "pmRef": {
         "period": 6,
         "month": "Mai",
         "year": 2026
       },
-      "sw": "1.20.0.22",
+      "sw": "1.24.0.22",
       "status": "ok",
       "adam": "fonctionnelle",
       "improvements": [],
@@ -272,17 +360,18 @@
       "localisation": "BSL2",
       "asdStatus": "valid",
       "pmHistory": [],
-      "monthlyMaint": "not_done",
+      "monthlyMaint": "done",
       "serialNumber": 300080
     },
     {
       "id": 10,
       "name": "MP86",
-      "lastDate": "2026-05-26T17:37:27",
+      "lastDate": "2026-08-10T12:45:58",
       "flags": [
         {
           "text": "PVDR, PVSR",
-          "completed": false
+          "completed": true,
+          "completedDate": "23/07/2026"
         }
       ],
       "pmRef": {
@@ -290,13 +379,24 @@
         "month": "Mars",
         "year": 2026
       },
-      "sw": "1.20.0.22",
+      "sw": "1.24.0.22",
       "status": "ok",
       "adam": "fonctionnelle",
       "improvements": [
         {
           "text": "NETTOYER MANDREL",
-          "completed": false
+          "completed": true,
+          "completedDate": "17/07/2026"
+        },
+        {
+          "text": "Z AXIS GRIPPER PACK",
+          "completed": true,
+          "completedDate": "17/07/2026"
+        },
+        {
+          "text": "NETTOYER MANDREL PRECISION",
+          "completed": true,
+          "completedDate": "23/07/2026"
         }
       ],
       "problems": [],
@@ -310,20 +410,19 @@
       "localisation": "BSL2",
       "asdStatus": "pending",
       "pmHistory": [],
-      "monthlyMaint": "not_done",
-      "serialNumber": 300086
+      "monthlyMaint": "done"
     },
     {
       "id": 11,
       "name": "MP89",
-      "lastDate": "2026-06-03T10:04:31",
+      "lastDate": "2026-08-18T13:13:43",
       "flags": [],
       "pmRef": {
         "period": 12,
         "month": "Mai",
         "year": 2026
       },
-      "sw": "1.20.0.22",
+      "sw": "1.24.0.22",
       "status": "ok",
       "adam": "fonctionnelle",
       "improvements": [
@@ -334,9 +433,19 @@
         {
           "text": "RP2 Alignments Check",
           "completed": false
+        },
+        {
+          "text": "RV chute",
+          "completed": false
         }
       ],
-      "problems": [],
+      "problems": [
+        {
+          "text": "Fuite effluent/Plus de fuite. Attente de pièce pour diviser la sortie vers le triton",
+          "completed": false,
+          "ticketId": 4
+        }
+      ],
       "repairs": [
         {
           "text": "Luminometre high voltage",
@@ -352,7 +461,7 @@
       "localisation": "BSL2",
       "asdStatus": "fail_precision",
       "pmHistory": [],
-      "monthlyMaint": "not_done",
+      "monthlyMaint": "done",
       "serialNumber": 300089
     },
     {
@@ -394,11 +503,11 @@
     {
       "id": 13,
       "name": "Access2 #511128",
-      "lastDate": "2026-06-02T16:58:23",
+      "lastDate": "2026-07-09T10:49:35",
       "flags": [],
       "pmRef": {
         "period": 6,
-        "month": "Janvier",
+        "month": "Juillet",
         "year": 2026
       },
       "sw": "4.1.0",
@@ -407,7 +516,8 @@
       "improvements": [
         {
           "text": "Ventilo HS capot à droite",
-          "completed": false
+          "completed": true,
+          "completedDate": "09/07/2026"
         }
       ],
       "problems": [],
@@ -517,8 +627,125 @@
       "monthlyMaint": "not_done"
     }
   ],
-  "tickets": [],
-  "users": [],
+  "tickets": [
+    {
+      "id": 1,
+      "machineId": 10,
+      "category": "reparation",
+      "comment": "Faire calibrating RSM",
+      "status": "closed",
+      "createdBy": 2,
+      "createdByName": "Mickael",
+      "createdAt": "2026-07-09T08:10:03",
+      "updatedAt": "2026-07-09T13:27:45",
+      "closedAt": "2026-07-09T13:27:45",
+      "closedBy": "Yoan"
+    },
+    {
+      "id": 2,
+      "machineId": 3,
+      "category": "probleme",
+      "comment": "calibrating rsm timing",
+      "status": "closed",
+      "createdBy": 3,
+      "createdByName": "Yoan",
+      "createdAt": "2026-07-09T13:28:39",
+      "updatedAt": "2026-07-10T13:55:47",
+      "closedAt": "2026-07-10T13:55:47",
+      "closedBy": "Mickael"
+    },
+    {
+      "id": 3,
+      "machineId": 4,
+      "category": "probleme",
+      "comment": "Low Volume ASD Failed",
+      "status": "closed",
+      "createdBy": 3,
+      "createdByName": "Yoan",
+      "createdAt": "2026-08-10T14:23:57",
+      "updatedAt": "2026-08-13T07:23:34",
+      "closedAt": "2026-08-13T07:23:34",
+      "closedBy": "Michael"
+    },
+    {
+      "id": 4,
+      "machineId": 11,
+      "category": "probleme",
+      "comment": "Fuite effluent/Plus de fuite. Attente de pièce pour diviser la sortie vers le triton",
+      "status": "open",
+      "createdBy": 5,
+      "createdByName": "Michael",
+      "createdAt": "2026-08-14T13:57:31",
+      "updatedAt": "2026-08-18T11:19:47"
+    },
+    {
+      "id": 5,
+      "machineId": 4,
+      "category": "probleme",
+      "comment": "RSM calibration a faire par Yoan",
+      "status": "open",
+      "createdBy": 5,
+      "createdByName": "Michael",
+      "createdAt": "2026-08-14T14:18:55",
+      "updatedAt": "2026-08-18T11:19:14"
+    },
+    {
+      "id": 6,
+      "machineId": 5,
+      "category": "probleme",
+      "comment": "Problème detection cup 2ml/0.5ml - insert new job file mod 13247 - D37874 spu jobfile",
+      "status": "closed",
+      "createdBy": 7,
+      "createdByName": "Soussand, Yoan",
+      "createdAt": "2026-08-18T15:15:35",
+      "updatedAt": "2026-08-19T08:53:23",
+      "itemId": 1,
+      "closedAt": "2026-08-19T08:53:23",
+      "closedBy": "Soussand, Yoan"
+    }
+  ],
+  "users": [
+    {
+      "id": 4,
+      "username": "pderderian@beckman.com",
+      "displayName": "Patricia",
+      "role": "operateur",
+      "salt": "4563eb5f072f6aac2f4347f81b3f70b1",
+      "passwordHash": "7e7191a380d8b09902a576403522a5adaec373869a868cc11ac952bc1905774042267350788f817c5d91c4a711dd7d811732facd89965dd91621d357f21668b6"
+    },
+    {
+      "id": 5,
+      "username": "mlangemeier",
+      "displayName": "Michael",
+      "role": "admin",
+      "salt": "f1862ae145e9f772001589425b09fb73",
+      "passwordHash": "7553838423fdf2df09463fb856bcc0e301f82badd978744c82111b5275ab4677ac338106c49739c16c566e39bb6b35d48d7dcea088b3213d1ee4451b8c903911"
+    },
+    {
+      "id": 6,
+      "username": "Admin",
+      "displayName": "Administrateur",
+      "role": "admin",
+      "salt": "403fc6b5efc71fc2e1d1500c8491ed22",
+      "passwordHash": "4fec72ebe54b2b4e9dd2c9373e2e56a92b1e6fd9051a5306e94a97b2113d828299edb0f53fd0d51d78d9f122007c411c35f1062eab3d18942540b4456dd726d9"
+    },
+    {
+      "id": 7,
+      "username": "ysoussand",
+      "displayName": "Soussand, Yoan",
+      "role": "admin",
+      "salt": "ef3d54c8849370dd9a583af0a17dda53",
+      "passwordHash": "2ac5b2fe80087b6cc645cd606f5bc63696faedd6a8a3f3cf2fe61eca66cfe4591c2c407753cc5910419da2a87acb5ec645a54da0f4b073beb5ddbf87cbdd52fd"
+    },
+    {
+      "id": 8,
+      "username": "sbord",
+      "displayName": "Bord, Stéphanie",
+      "role": "admin",
+      "salt": "a2dcf0917c40c41cf5d51d0d2896c93f",
+      "passwordHash": "dfa08bfab0a4396f48fc41452dae7716e2510d0dd149db0d4f53a10fc36335fc00ee3076accbb89aa51e8109dc93513fa746738357584d923e0550a21eb96768"
+    }
+  ],
   "history": [
     {
       "date": "12/06/2026 12:14:24",
@@ -1022,5 +1249,5 @@
     }
   ],
   "exportDate": "2026-07-09T00:00:00.000Z",
-  "lastMonthlyMaintReset": "2026-07-02"
+  "lastMonthlyMaintReset": "2026-08-03"
 }
