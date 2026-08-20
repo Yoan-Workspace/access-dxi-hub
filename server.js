@@ -278,8 +278,18 @@ function isOfficeIncomingWebhook(url) {
   return /webhook\.office\.com|outlook\.office\.com\/webhook/i.test(url);
 }
 
-function teamsTicketText({ ticket, machine }) {
+function teamsTicketText({ ticket, machine }, event = "opened") {
   const category = ticketCategoryLabel(ticket.category);
+  if (event === "closed") {
+    return [
+      `Ticket #${ticket.id} clôturé`,
+      `Machine : ${machine.name}`,
+      `Catégorie : ${category}`,
+      `Clôturé par : ${ticket.closedBy ?? "—"}`,
+      `Commentaire : ${ticket.comment}`,
+    ].join("\n");
+  }
+
   return [
     `Nouveau ticket #${ticket.id}`,
     `Machine : ${machine.name}`,
@@ -289,23 +299,39 @@ function teamsTicketText({ ticket, machine }) {
   ].join("\n");
 }
 
-function teamsTicketPayload({ ticket, machine }) {
+function teamsTicketPayload({ ticket, machine }, event = "opened") {
   const category = ticketCategoryLabel(ticket.category);
-  const title = `Nouveau ticket #${ticket.id} — ${machine.name} (${category})`;
-  const text = teamsTicketText({ ticket, machine });
-  const facts = [
-    { name: "Machine", value: String(machine.name ?? "") },
-    { name: "Catégorie", value: category },
-    { name: "Ouvert par", value: String(ticket.createdByName ?? "") },
-    { name: "Date", value: String(ticket.createdAt ?? "") },
-  ];
+  const title =
+    event === "closed"
+      ? `Ticket #${ticket.id} clôturé — ${machine.name} (${category})`
+      : `Nouveau ticket #${ticket.id} — ${machine.name} (${category})`;
+  const text = teamsTicketText({ ticket, machine }, event);
+  const facts =
+    event === "closed"
+      ? [
+          { name: "Machine", value: String(machine.name ?? "") },
+          { name: "Catégorie", value: category },
+          { name: "Clôturé par", value: String(ticket.closedBy ?? "") },
+          { name: "Date", value: String(ticket.closedAt ?? ticket.updatedAt ?? "") },
+        ]
+      : [
+          { name: "Machine", value: String(machine.name ?? "") },
+          { name: "Catégorie", value: category },
+          { name: "Ouvert par", value: String(ticket.createdByName ?? "") },
+          { name: "Date", value: String(ticket.createdAt ?? "") },
+        ];
 
   if (isOfficeIncomingWebhook(TEAMS_WEBHOOK_URL)) {
     return {
       text,
       "@type": "MessageCard",
       "@context": "https://schema.org/extensions",
-      themeColor: ticket.category === "flag" ? "EAB308" : "EF4444",
+      themeColor:
+        event === "closed"
+          ? "22C55E"
+          : ticket.category === "flag"
+            ? "EAB308"
+            : "EF4444",
       summary: title,
       title,
       sections: [{ facts, text: ticket.comment }],
@@ -354,21 +380,26 @@ async function postTeamsWebhook(payload) {
   }
 }
 
-function notifyTeamsTicketOpened({ ticket, machine }) {
+function notifyTeamsTicket(event, { ticket, machine }) {
   if (!TEAMS_WEBHOOK_URL) {
     console.warn("Notification Teams ignorée : TEAMS_WEBHOOK_URL est vide");
     return;
   }
 
-  const payload = teamsTicketPayload({ ticket, machine });
+  const payload = teamsTicketPayload({ ticket, machine }, event);
+  const label = event === "closed" ? "clôture" : "ouverture";
   postTeamsWebhook(payload)
     .then(() => {
-      console.log(`Notification Teams envoyée (ticket #${ticket.id})`);
+      console.log(`Notification Teams envoyée (${label} ticket #${ticket.id})`);
     })
     .catch(async (error) => {
       try {
-        await postTeamsWebhook({ text: teamsTicketText({ ticket, machine }) });
-        console.log(`Notification Teams envoyée en texte (ticket #${ticket.id})`);
+        await postTeamsWebhook({
+          text: teamsTicketText({ ticket, machine }, event),
+        });
+        console.log(
+          `Notification Teams envoyée en texte (${label} ticket #${ticket.id})`,
+        );
       } catch (retryError) {
         console.warn(
           "Notification Teams canal impossible:",
@@ -376,6 +407,14 @@ function notifyTeamsTicketOpened({ ticket, machine }) {
         );
       }
     });
+}
+
+function notifyTeamsTicketOpened({ ticket, machine }) {
+  notifyTeamsTicket("opened", { ticket, machine });
+}
+
+function notifyTeamsTicketClosed({ ticket, machine }) {
+  notifyTeamsTicket("closed", { ticket, machine });
 }
 
 function nextId(items) {
@@ -514,19 +553,19 @@ function removeTicketFromMachine(machine, ticketId) {
 
 function closeTicketById(data, ticketId, closedBy) {
   const ticket = data.tickets.find((t) => t.id === Number(ticketId));
-  if (!ticket || ticket.status !== "open") return false;
+  if (!ticket || ticket.status !== "open") return null;
 
   const now = new Date().toISOString().slice(0, 19);
   ticket.status = "closed";
   ticket.closedAt = now;
   ticket.closedBy = closedBy;
   ticket.updatedAt = now;
-  return true;
+  return ticket;
 }
 
 function closeMatchingOpenTickets(data, machineId, category, text, closedBy) {
   const now = new Date().toISOString().slice(0, 19);
-  let changed = false;
+  const closed = [];
 
   for (const ticket of data.tickets) {
     if (
@@ -539,11 +578,11 @@ function closeMatchingOpenTickets(data, machineId, category, text, closedBy) {
       ticket.closedAt = now;
       ticket.closedBy = closedBy;
       ticket.updatedAt = now;
-      changed = true;
+      closed.push(ticket);
     }
   }
 
-  return changed;
+  return closed;
 }
 
 function inheritSameRowTicketId(nextList, prevList) {
@@ -613,6 +652,7 @@ function findTicketForItem(data, machine, category, item) {
 function syncMachineLinkedTickets(data, previous, machine, user) {
   const now = new Date().toISOString().slice(0, 19);
   const created = [];
+  const closed = [];
   const pairs = [
     ["problems", "probleme"],
     ["flags", "flag"],
@@ -668,7 +708,12 @@ function syncMachineLinkedTickets(data, previous, machine, user) {
       }
 
       if (item.completed && ticket.status === "open") {
-        closeTicketById(data, ticket.id, user.displayName);
+        const closedTicket = closeTicketById(
+          data,
+          ticket.id,
+          user.displayName,
+        );
+        if (closedTicket) closed.push({ ticket: closedTicket, machine });
       } else if (!item.completed && ticket.status === "closed") {
         ticket.status = "open";
         delete ticket.closedAt;
@@ -678,45 +723,49 @@ function syncMachineLinkedTickets(data, previous, machine, user) {
     }
   }
 
-  return created;
+  return { created, closed };
 }
 
 function closeTicketsForCompletedItems(data, machine, closedBy) {
-  let changed = false;
+  const closed = [];
 
   for (const item of machine.problems ?? []) {
     if (!item?.completed) continue;
     if (item.ticketId != null) {
-      if (closeTicketById(data, item.ticketId, closedBy)) changed = true;
+      const ticket = closeTicketById(data, item.ticketId, closedBy);
+      if (ticket) closed.push(ticket);
     } else if (item.text) {
-      if (
-        closeMatchingOpenTickets(
+      closed.push(
+        ...closeMatchingOpenTickets(
           data,
           machine.id,
           "probleme",
           item.text,
           closedBy,
-        )
-      ) {
-        changed = true;
-      }
+        ),
+      );
     }
   }
 
   for (const item of machine.flags ?? []) {
     if (!item?.completed) continue;
     if (item.ticketId != null) {
-      if (closeTicketById(data, item.ticketId, closedBy)) changed = true;
+      const ticket = closeTicketById(data, item.ticketId, closedBy);
+      if (ticket) closed.push(ticket);
     } else if (item.text) {
-      if (
-        closeMatchingOpenTickets(data, machine.id, "flag", item.text, closedBy)
-      ) {
-        changed = true;
-      }
+      closed.push(
+        ...closeMatchingOpenTickets(
+          data,
+          machine.id,
+          "flag",
+          item.text,
+          closedBy,
+        ),
+      );
     }
   }
 
-  return changed;
+  return closed;
 }
 
 /** Réinjecte les tickets ouverts manquants dans flags / problems des machines. */
@@ -1495,6 +1544,14 @@ app.put("/api/tickets/:id", authMiddleware, requireRole("admin", "technicien"), 
   writeData(data);
   notifyClients();
 
+  if (
+    status === "closed" &&
+    current.status !== "closed" &&
+    machine
+  ) {
+    notifyTeamsTicketClosed({ ticket: updated, machine });
+  }
+
   res.json({ ticket: updated, machine: machine ?? null });
 });
 
@@ -1622,17 +1679,16 @@ app.put(
 
     const previous = data.machines[index];
     const machine = { ...req.body, id };
-    const createdTickets = syncMachineLinkedTickets(
-      data,
-      previous,
-      machine,
-      req.user,
-    );
+    const { created: createdTickets, closed: closedTickets } =
+      syncMachineLinkedTickets(data, previous, machine, req.user);
     data.machines[index] = machine;
     writeData(data);
     notifyClients();
     for (const created of createdTickets) {
       notifyTeamsTicketOpened(created);
+    }
+    for (const closed of closedTickets) {
+      notifyTeamsTicketClosed(closed);
     }
 
     const machineTickets = data.tickets.filter(
@@ -1671,17 +1727,21 @@ app.post(
       return res.status(409).json({ error: "Une machine avec ce nom existe déjà" });
     }
 
-    const createdTickets = syncMachineLinkedTickets(
-      data,
-      { flags: [], problems: [] },
-      newMachine,
-      req.user,
-    );
+    const { created: createdTickets, closed: closedTickets } =
+      syncMachineLinkedTickets(
+        data,
+        { flags: [], problems: [] },
+        newMachine,
+        req.user,
+      );
     data.machines.push(newMachine);
     writeData(data);
     notifyClients();
     for (const created of createdTickets) {
       notifyTeamsTicketOpened(created);
+    }
+    for (const closed of closedTickets) {
+      notifyTeamsTicketClosed(closed);
     }
 
     res.status(201).json(newMachine);
