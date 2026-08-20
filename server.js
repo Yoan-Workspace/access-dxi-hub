@@ -3,8 +3,12 @@ import fs from "fs";
 import cors from "cors";
 import path from "path";
 import crypto from "crypto";
+import zlib from "zlib";
+import { promisify } from "util";
 import { fileURLToPath } from "url";
-import sharp from "sharp";
+import jpeg from "jpeg-js";
+
+const inflatePng = promisify(zlib.inflate);
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -852,65 +856,183 @@ function classifyStatusColor(avgR, avgG, avgB) {
   return "unknown";
 }
 
+/** Décode PNG/JPEG vers RGBA (sans sharp / binaire natif). */
+async function decodeImageRgba(buffer) {
+  if (buffer.length >= 3 && buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff) {
+    const decoded = jpeg.decode(buffer, { useTArray: true, formatAsRGBA: true });
+    return {
+      width: decoded.width,
+      height: decoded.height,
+      rgba: Buffer.from(decoded.data),
+    };
+  }
+
+  if (
+    buffer.length < 24 ||
+    buffer[0] !== 0x89 ||
+    buffer.toString("ascii", 1, 4) !== "PNG"
+  ) {
+    throw new Error("Image live non PNG/JPEG");
+  }
+
+  let offset = 8;
+  let width = 0;
+  let height = 0;
+  let bitDepth = 0;
+  let colorType = -1;
+  const idatChunks = [];
+
+  while (offset + 8 <= buffer.length) {
+    const length = buffer.readUInt32BE(offset);
+    const type = buffer.toString("ascii", offset + 4, offset + 8);
+    const dataStart = offset + 8;
+    const dataEnd = dataStart + length;
+    if (dataEnd + 4 > buffer.length) break;
+    const data = buffer.subarray(dataStart, dataEnd);
+
+    if (type === "IHDR") {
+      width = data.readUInt32BE(0);
+      height = data.readUInt32BE(4);
+      bitDepth = data[8];
+      colorType = data[9];
+    } else if (type === "IDAT") {
+      idatChunks.push(data);
+    } else if (type === "IEND") {
+      break;
+    }
+
+    offset = dataEnd + 4;
+  }
+
+  if (!width || !height) throw new Error("PNG invalide (IHDR manquant)");
+  if (bitDepth !== 8) throw new Error(`PNG bit depth non supporté: ${bitDepth}`);
+
+  const bytesPerPixel =
+    colorType === 2 ? 3 : colorType === 6 ? 4 : colorType === 0 ? 1 : colorType === 4 ? 2 : 0;
+  if (!bytesPerPixel) {
+    throw new Error(`PNG color type non supporté: ${colorType}`);
+  }
+
+  const inflated = await inflatePng(Buffer.concat(idatChunks));
+  const stride = width * bytesPerPixel;
+  const rgba = Buffer.alloc(width * height * 4);
+  let src = 0;
+  let prev = Buffer.alloc(stride);
+
+  for (let y = 0; y < height; y++) {
+    const filter = inflated[src++];
+    const row = Buffer.alloc(stride);
+    inflated.copy(row, 0, src, src + stride);
+    src += stride;
+
+    for (let i = 0; i < stride; i++) {
+      const left = i >= bytesPerPixel ? row[i - bytesPerPixel] : 0;
+      const up = prev[i];
+      const upLeft = i >= bytesPerPixel ? prev[i - bytesPerPixel] : 0;
+      let value = row[i];
+
+      switch (filter) {
+        case 1:
+          value = (value + left) & 0xff;
+          break;
+        case 2:
+          value = (value + up) & 0xff;
+          break;
+        case 3:
+          value = (value + ((left + up) >> 1)) & 0xff;
+          break;
+        case 4: {
+          const p = left + up - upLeft;
+          const pa = Math.abs(p - left);
+          const pb = Math.abs(p - up);
+          const pc = Math.abs(p - upLeft);
+          const pred = pa <= pb && pa <= pc ? left : pb <= pc ? up : upLeft;
+          value = (value + pred) & 0xff;
+          break;
+        }
+        case 0:
+          break;
+        default:
+          throw new Error(`PNG filter non supporté: ${filter}`);
+      }
+      row[i] = value;
+    }
+
+    for (let x = 0; x < width; x++) {
+      const si = x * bytesPerPixel;
+      const di = (y * width + x) * 4;
+      if (colorType === 2 || colorType === 6) {
+        rgba[di] = row[si];
+        rgba[di + 1] = row[si + 1];
+        rgba[di + 2] = row[si + 2];
+        rgba[di + 3] = colorType === 6 ? row[si + 3] : 255;
+      } else if (colorType === 0) {
+        rgba[di] = rgba[di + 1] = rgba[di + 2] = row[si];
+        rgba[di + 3] = 255;
+      } else {
+        rgba[di] = rgba[di + 1] = rgba[di + 2] = row[si];
+        rgba[di + 3] = row[si + 1];
+      }
+    }
+
+    prev = row;
+  }
+
+  return { width, height, rgba };
+}
+
 async function detectColorFromBuffer(buffer) {
-  const { width, height } = await sharp(buffer).metadata();
-  if (!width || !height) throw new Error("Cannot read image dimensions");
+  const { width, height, rgba } = await decodeImageRgba(buffer);
 
   // Bandeau SYSTEM bas-gauche (proportions validées sur capture DXI300011)
   const regionLeft = Math.max(0, Math.round(width * 0.01));
   const regionTop = Math.max(0, Math.round(height * 0.88));
   const regionWidth = Math.max(8, Math.round(width * 0.12));
   const regionHeight = Math.max(8, Math.round(height * 0.08));
-  const safeWidth = Math.min(regionWidth, width - regionLeft);
-  const safeHeight = Math.min(regionHeight, height - regionTop);
+  const xEnd = Math.min(width, regionLeft + regionWidth);
+  const yEnd = Math.min(height, regionTop + regionHeight);
 
-  const { data: pixels, info } = await sharp(buffer)
-    .extract({
-      left: regionLeft,
-      top: regionTop,
-      width: safeWidth,
-      height: safeHeight,
-    })
-    .removeAlpha()
-    .raw()
-    .toBuffer({ resolveWithObject: true });
-
-  const channels = info.channels;
   let totalR = 0;
   let totalG = 0;
   let totalB = 0;
   let counted = 0;
+  let rawR = 0;
+  let rawG = 0;
+  let rawB = 0;
+  let rawCount = 0;
 
-  // Ignore pixels trop clairs / gris (texte blanc, fond) pour garder le fond coloré
-  for (let i = 0; i < pixels.length; i += channels) {
-    const r = pixels[i];
-    const g = pixels[i + 1];
-    const b = pixels[i + 2];
-    const max = Math.max(r, g, b);
-    const min = Math.min(r, g, b);
-    if (max > 245 && min > 230) continue;
-    if (max - min < 20) continue;
-    totalR += r;
-    totalG += g;
-    totalB += b;
-    counted++;
-  }
+  for (let y = regionTop; y < yEnd; y++) {
+    for (let x = regionLeft; x < xEnd; x++) {
+      const i = (y * width + x) * 4;
+      const r = rgba[i];
+      const g = rgba[i + 1];
+      const b = rgba[i + 2];
+      rawR += r;
+      rawG += g;
+      rawB += b;
+      rawCount++;
 
-  if (counted < 10) {
-    // Fallback moyenne brute si trop de filtrage
-    counted = pixels.length / channels;
-    totalR = totalG = totalB = 0;
-    for (let i = 0; i < pixels.length; i += channels) {
-      totalR += pixels[i];
-      totalG += pixels[i + 1];
-      totalB += pixels[i + 2];
+      const max = Math.max(r, g, b);
+      const min = Math.min(r, g, b);
+      if (max > 245 && min > 230) continue;
+      if (max - min < 20) continue;
+      totalR += r;
+      totalG += g;
+      totalB += b;
+      counted++;
     }
   }
 
-  const avgR = totalR / counted;
-  const avgG = totalG / counted;
-  const avgB = totalB / counted;
-  return classifyStatusColor(avgR, avgG, avgB);
+  if (counted < 10) {
+    counted = rawCount;
+    totalR = rawR;
+    totalG = rawG;
+    totalB = rawB;
+  }
+
+  if (!counted) throw new Error("Zone d'analyse vide");
+
+  return classifyStatusColor(totalR / counted, totalG / counted, totalB / counted);
 }
 
 async function refreshLiveStatus(machine) {
