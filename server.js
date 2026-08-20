@@ -749,53 +749,12 @@ function syncOpenTicketsIntoMachines(data) {
 }
 
 // ---------------------------------------------------------------------------
-// Live color detection — analyse image DXI pour détecter rouge/vert
+// Live color detection — bandeau SYSTEM (bas-gauche) : vert / rouge / bleu
 // ---------------------------------------------------------------------------
 
 const LAB_MANAGER_HOST = "http://cciaappserver01";
 const LIVE_STATUS_CACHE = new Map();
 const LIVE_POLL_INTERVAL_MS = 5 * 60 * 1000;
-
-function dxiImageUrl(serialNumber) {
-  return `${LAB_MANAGER_HOST}/LabManager/Content/Images/DXI${serialNumber}.png`;
-}
-
-async function detectColorFromImage(imageUrl) {
-  const response = await fetch(imageUrl, { signal: AbortSignal.timeout(15000) });
-  if (!response.ok) throw new Error(`HTTP ${response.status}`);
-  const buffer = Buffer.from(await response.arrayBuffer());
-
-  const { width, height } = await sharp(buffer).metadata();
-  if (!width || !height) throw new Error("Cannot read image dimensions");
-
-  // Zone bas-gauche : x 30→230, y (height-180)→(height-30)
-  const regionLeft = 30;
-  const regionTop = Math.max(0, height - 180);
-  const regionWidth = Math.min(200, width - regionLeft);
-  const regionHeight = Math.min(150, height - regionTop);
-
-  const { data: pixels } = await sharp(buffer)
-    .extract({ left: regionLeft, top: regionTop, width: regionWidth, height: regionHeight })
-    .raw()
-    .toBuffer({ resolveWithObject: true });
-
-  let totalR = 0, totalG = 0, totalB = 0;
-  const pixelCount = pixels.length / 3;
-  for (let i = 0; i < pixels.length; i += 3) {
-    totalR += pixels[i];
-    totalG += pixels[i + 1];
-    totalB += pixels[i + 2];
-  }
-
-  const avgR = totalR / pixelCount;
-  const avgG = totalG / pixelCount;
-  const avgB = totalB / pixelCount;
-
-  if (avgR > avgG * 1.4 && avgR > avgB * 1.3) return "red";
-  if (avgG > avgR * 1.4 && avgG > avgB * 1.3) return "green";
-  if (avgB > avgR * 1.3 && avgB > avgG * 1.3) return "blue";
-  return "unknown";
-}
 
 function serialNumberForMachine(machine) {
   if (machine.serialNumber) return String(machine.serialNumber);
@@ -804,13 +763,163 @@ function serialNumberForMachine(machine) {
   return `300${match[1].padStart(3, "0")}`;
 }
 
+function dxiInstId(serialNumber) {
+  return `DXI${serialNumber}`;
+}
+
+function absoluteLabUrl(href) {
+  if (!href) return null;
+  if (/^https?:\/\//i.test(href)) return href;
+  if (href.startsWith("//")) return `http:${href}`;
+  if (href.startsWith("/")) return `${LAB_MANAGER_HOST}${href}`;
+  return `${LAB_MANAGER_HOST}/LabManager/${href.replace(/^\.\//, "")}`;
+}
+
+/** Résout l'URL de l'image live depuis InstrumentHome (src img / DXI*.png). */
+async function resolveLiveImageUrl(serialNumber) {
+  const instId = dxiInstId(serialNumber);
+  const pageUrl = `${LAB_MANAGER_HOST}/LabManager/Home/InstrumentHome?instID=${instId}`;
+  const candidates = [
+    `${LAB_MANAGER_HOST}/LabManager/Content/Images/${instId}.png`,
+    `${LAB_MANAGER_HOST}/LabManager/Content/images/${instId}.png`,
+    `${LAB_MANAGER_HOST}/LabManager/Images/${instId}.png`,
+  ];
+
+  try {
+    const pageRes = await fetch(pageUrl, { signal: AbortSignal.timeout(15000) });
+    if (pageRes.ok) {
+      const html = await pageRes.text();
+      const patterns = [
+        new RegExp(`src=["']([^"']*${instId}\\.(?:png|jpe?g|gif|webp)[^"']*)["']`, "i"),
+        /src=["']([^"']+\.(?:png|jpe?g|gif|webp)[^"']*)["']/i,
+        new RegExp(`(["'])([^"']*${instId}\\.(?:png|jpe?g|gif|webp)[^"']*)\\1`, "i"),
+      ];
+      for (const pattern of patterns) {
+        const match = html.match(pattern);
+        const href = match?.[1] || match?.[2];
+        const absolute = absoluteLabUrl(href);
+        if (absolute) {
+          candidates.unshift(absolute);
+          break;
+        }
+      }
+    }
+  } catch {
+    /* page inaccessible : on tente les URLs directes */
+  }
+
+  let lastError = null;
+  for (const url of [...new Set(candidates)]) {
+    try {
+      const res = await fetch(url, {
+        method: "GET",
+        signal: AbortSignal.timeout(15000),
+      });
+      if (!res.ok) {
+        lastError = new Error(`HTTP ${res.status} for ${url}`);
+        continue;
+      }
+      const contentType = res.headers.get("content-type") || "";
+      const buffer = Buffer.from(await res.arrayBuffer());
+      if (
+        buffer.length < 100 ||
+        (contentType && !/image|octet-stream|png|jpeg|jpg/i.test(contentType) && !url.match(/\.(png|jpe?g|gif|webp)$/i))
+      ) {
+        lastError = new Error(`Not an image: ${url}`);
+        continue;
+      }
+      return { url, buffer };
+    } catch (err) {
+      lastError = err;
+    }
+  }
+
+  throw lastError || new Error(`Image live introuvable pour ${instId}`);
+}
+
+/** Vert (OK), rouge (problème), bleu (maintenance) — calé sur le bandeau SYSTEM. */
+function classifyStatusColor(avgR, avgG, avgB) {
+  const max = Math.max(avgR, avgG, avgB);
+  const min = Math.min(avgR, avgG, avgB);
+  if (max - min < 25) return "unknown";
+
+  // Bleu = maintenance
+  if (avgB > avgR + 25 && avgB > avgG + 15) return "blue";
+  // Rouge = problème
+  if (avgR > avgG + 25 && avgR > avgB + 25) return "red";
+  // Vert lime inclus (ex. ~160,182,55) : G élevé, B bas
+  if (avgG >= avgR - 15 && avgG > avgB + 35) return "green";
+  return "unknown";
+}
+
+async function detectColorFromBuffer(buffer) {
+  const { width, height } = await sharp(buffer).metadata();
+  if (!width || !height) throw new Error("Cannot read image dimensions");
+
+  // Bandeau SYSTEM bas-gauche (proportions validées sur capture DXI300011)
+  const regionLeft = Math.max(0, Math.round(width * 0.01));
+  const regionTop = Math.max(0, Math.round(height * 0.88));
+  const regionWidth = Math.max(8, Math.round(width * 0.12));
+  const regionHeight = Math.max(8, Math.round(height * 0.08));
+  const safeWidth = Math.min(regionWidth, width - regionLeft);
+  const safeHeight = Math.min(regionHeight, height - regionTop);
+
+  const { data: pixels, info } = await sharp(buffer)
+    .extract({
+      left: regionLeft,
+      top: regionTop,
+      width: safeWidth,
+      height: safeHeight,
+    })
+    .removeAlpha()
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+
+  const channels = info.channels;
+  let totalR = 0;
+  let totalG = 0;
+  let totalB = 0;
+  let counted = 0;
+
+  // Ignore pixels trop clairs / gris (texte blanc, fond) pour garder le fond coloré
+  for (let i = 0; i < pixels.length; i += channels) {
+    const r = pixels[i];
+    const g = pixels[i + 1];
+    const b = pixels[i + 2];
+    const max = Math.max(r, g, b);
+    const min = Math.min(r, g, b);
+    if (max > 245 && min > 230) continue;
+    if (max - min < 20) continue;
+    totalR += r;
+    totalG += g;
+    totalB += b;
+    counted++;
+  }
+
+  if (counted < 10) {
+    // Fallback moyenne brute si trop de filtrage
+    counted = pixels.length / channels;
+    totalR = totalG = totalB = 0;
+    for (let i = 0; i < pixels.length; i += channels) {
+      totalR += pixels[i];
+      totalG += pixels[i + 1];
+      totalB += pixels[i + 2];
+    }
+  }
+
+  const avgR = totalR / counted;
+  const avgG = totalG / counted;
+  const avgB = totalB / counted;
+  return classifyStatusColor(avgR, avgG, avgB);
+}
+
 async function refreshLiveStatus(machine) {
   const serial = serialNumberForMachine(machine);
   if (!serial) return null;
 
-  const url = dxiImageUrl(serial);
   try {
-    const color = await detectColorFromImage(url);
+    const { buffer } = await resolveLiveImageUrl(serial);
+    const color = await detectColorFromBuffer(buffer);
     const entry = { color, checkedAt: new Date().toISOString(), error: null };
     LIVE_STATUS_CACHE.set(machine.id, entry);
     return entry;
