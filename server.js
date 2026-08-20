@@ -560,12 +560,19 @@ function closeTicketById(data, ticketId, closedBy) {
   ticket.closedAt = now;
   ticket.closedBy = closedBy;
   ticket.updatedAt = now;
+
+  const machine = findMachine(data, ticket.machineId);
+  if (machine) {
+    notifyTeamsTicketClosed({ ticket, machine });
+  }
+
   return ticket;
 }
 
 function closeMatchingOpenTickets(data, machineId, category, text, closedBy) {
   const now = new Date().toISOString().slice(0, 19);
   const closed = [];
+  const machine = findMachine(data, machineId);
 
   for (const ticket of data.tickets) {
     if (
@@ -579,6 +586,9 @@ function closeMatchingOpenTickets(data, machineId, category, text, closedBy) {
       ticket.closedBy = closedBy;
       ticket.updatedAt = now;
       closed.push(ticket);
+      if (machine) {
+        notifyTeamsTicketClosed({ ticket, machine });
+      }
     }
   }
 
@@ -1498,12 +1508,12 @@ app.put("/api/tickets/:id", authMiddleware, requireRole("admin", "technicien"), 
     updatedAt: new Date().toISOString().slice(0, 19),
   };
 
-  if (status === "closed" && current.status !== "closed") {
+  if (status === "closed" && current.status === "open") {
     updated.closedAt = updated.updatedAt;
     updated.closedBy = req.user.displayName;
   }
 
-  if (status === "open") {
+  if (status === "open" && current.status === "closed") {
     updated.closedAt = undefined;
     updated.closedBy = undefined;
   }
@@ -1544,11 +1554,7 @@ app.put("/api/tickets/:id", authMiddleware, requireRole("admin", "technicien"), 
   writeData(data);
   notifyClients();
 
-  if (
-    status === "closed" &&
-    current.status !== "closed" &&
-    machine
-  ) {
+  if (updated.status === "closed" && current.status === "open" && machine) {
     notifyTeamsTicketClosed({ ticket: updated, machine });
   }
 
@@ -1679,16 +1685,17 @@ app.put(
 
     const previous = data.machines[index];
     const machine = { ...req.body, id };
-    const { created: createdTickets, closed: closedTickets } =
-      syncMachineLinkedTickets(data, previous, machine, req.user);
+    const { created: createdTickets } = syncMachineLinkedTickets(
+      data,
+      previous,
+      machine,
+      req.user,
+    );
     data.machines[index] = machine;
     writeData(data);
     notifyClients();
     for (const created of createdTickets) {
       notifyTeamsTicketOpened(created);
-    }
-    for (const closed of closedTickets) {
-      notifyTeamsTicketClosed(closed);
     }
 
     const machineTickets = data.tickets.filter(
@@ -1727,21 +1734,17 @@ app.post(
       return res.status(409).json({ error: "Une machine avec ce nom existe déjà" });
     }
 
-    const { created: createdTickets, closed: closedTickets } =
-      syncMachineLinkedTickets(
-        data,
-        { flags: [], problems: [] },
-        newMachine,
-        req.user,
-      );
+    const { created: createdTickets } = syncMachineLinkedTickets(
+      data,
+      { flags: [], problems: [] },
+      newMachine,
+      req.user,
+    );
     data.machines.push(newMachine);
     writeData(data);
     notifyClients();
     for (const created of createdTickets) {
       notifyTeamsTicketOpened(created);
-    }
-    for (const closed of closedTickets) {
-      notifyTeamsTicketClosed(closed);
     }
 
     res.status(201).json(newMachine);

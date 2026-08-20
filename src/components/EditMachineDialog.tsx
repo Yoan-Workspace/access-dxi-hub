@@ -197,6 +197,18 @@ export function EditMachineDialog({
     }
   };
 
+  const toggleLinkedTicket = async (ticketId: number, completed: boolean) => {
+    if (!onUpdateTicket) return;
+    setPendingLinked((n) => n + 1);
+    try {
+      await onUpdateTicket(ticketId, {
+        status: completed ? "closed" : "open",
+      });
+    } finally {
+      setPendingLinked((n) => Math.max(0, n - 1));
+    }
+  };
+
   const setPmRef = (patch: Partial<NonNullable<Machine["pmRef"]>>) => {
     setDraft((d) => {
       if (!d) return d;
@@ -545,6 +557,7 @@ const remove = async () => {
                     : undefined
                 }
                 onDeleteLinked={onDeleteTicket ? deleteLinkedTicket : undefined}
+                onToggleLinked={onUpdateTicket ? toggleLinkedTicket : undefined}
               />
             </TabsContent>
             <TabsContent value="problems" className="mt-0">
@@ -560,6 +573,7 @@ const remove = async () => {
                     : undefined
                 }
                 onDeleteLinked={onDeleteTicket ? deleteLinkedTicket : undefined}
+                onToggleLinked={onUpdateTicket ? toggleLinkedTicket : undefined}
               />
             </TabsContent>
             <TabsContent value="repairs" className="mt-0">
@@ -688,6 +702,7 @@ function TodoEditor({
   createsTicket = false,
   onCreateLinked,
   onDeleteLinked,
+  onToggleLinked,
 }: {
   items: TodoItem[];
   onChange: (items: TodoItem[]) => void;
@@ -696,6 +711,7 @@ function TodoEditor({
   createsTicket?: boolean;
   onCreateLinked?: (text: string, itemId?: number) => Promise<void>;
   onDeleteLinked?: (ticketId: number) => Promise<void>;
+  onToggleLinked?: (ticketId: number, completed: boolean) => Promise<void>;
 }) {
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
@@ -719,15 +735,21 @@ function TodoEditor({
   };
 
   const toggle = (i: number) => {
+    const item = items[i];
+    if (!item) return;
+    const nextCompleted = !item.completed;
     onChange(
       items.map((it, idx) =>
         idx === i
-          ? it.completed
-            ? { ...it, text: it.text, completed: false }
-            : { ...it, completed: true, completedDate: todayFr() }
+          ? nextCompleted
+            ? { ...it, completed: true, completedDate: todayFr() }
+            : { ...it, completed: false, completedDate: undefined }
           : it,
       ),
     );
+    if (item.ticketId != null && onToggleLinked) {
+      void onToggleLinked(item.ticketId, nextCompleted);
+    }
   };
 
   const remove = (i: number) => {
@@ -744,8 +766,8 @@ function TodoEditor({
     <div className="space-y-3">
       {createsTicket && !readOnly && (
         <p className="text-[11px] text-muted-foreground">
-          Un ticket lié est créé tout de suite (notification Teams). Modifier le texte puis
-          Enregistrer met à jour le ticket.
+          Un ticket lié est créé / clôturé tout de suite (notification Teams). Modifier le
+          texte puis Enregistrer met à jour le ticket.
         </p>
       )}
       {!readOnly && (
