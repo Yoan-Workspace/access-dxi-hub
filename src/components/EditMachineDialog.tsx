@@ -1,10 +1,12 @@
 import { useEffect, useState } from "react";
 import { Plus, Trash2, Check, Ticket as TicketIcon } from "lucide-react";
-import type { Machine, Ticket, TicketCategory, TodoItem } from "@/lib/types";
+import type { ChecklistItem, Machine, Ticket, TicketCategory, TodoItem } from "@/lib/types";
 import { machineKind } from "@/lib/types";
 import { getMachineWave, inferSerialFromName } from "@/lib/machineWave";
-import { applyTicketsToMachine, linkTicketIdsPreserveText, mergeNewTicketItems } from "@/lib/ticketSync";
+import { applyTicketsToMachine, linkTicketIdsPreserveText, mergeNewTicketItems, syncChecklistsFromTickets } from "@/lib/ticketSync";
 import { MachineTicketsPanel } from "@/components/MachineTicketsPanel";
+import { ItemChecklist } from "@/components/ItemChecklist";
+import { ProgressRing, ProgressStatusBadge } from "@/components/ProgressRing";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -55,7 +57,7 @@ interface Props {
   onDelete?: (id: number) => Promise<void> | void;
   onUpdateTicket?: (
     id: number,
-    input: Partial<Pick<Ticket, "category" | "comment" | "status">>,
+    input: Partial<Pick<Ticket, "category" | "comment" | "status" | "checklist">>,
   ) => Promise<void>;
   onDeleteTicket?: (id: number) => Promise<void>;
   onCreateTicket?: (input: {
@@ -64,6 +66,10 @@ interface Props {
     comment: string;
     itemId?: number;
   }) => Promise<{ ticket: Ticket; machine?: Machine }>;
+  onUpdateItemChecklist?: (
+    itemId: number,
+    checklist: ChecklistItem[],
+  ) => Promise<void>;
   onOpenCreateTicket?: () => void;
 }
 
@@ -120,6 +126,7 @@ export function EditMachineDialog({
   onUpdateTicket,
   onDeleteTicket,
   onCreateTicket,
+  onUpdateItemChecklist,
   onOpenCreateTicket,
 }: Props) {
   const [draft, setDraft] = useState<Machine | null>(null);
@@ -152,7 +159,8 @@ export function EditMachineDialog({
     setDraft((current) => {
       if (!current) return current;
       const linked = linkTicketIdsPreserveText(current, tickets);
-      return mergeNewTicketItems(linked, tickets);
+      const merged = mergeNewTicketItems(linked, tickets);
+      return syncChecklistsFromTickets(merged, tickets);
     });
   }, [open, tickets]);
 
@@ -209,6 +217,21 @@ export function EditMachineDialog({
     }
   };
 
+  const persistItemChecklist = async (item: TodoItem, checklist: ChecklistItem[]) => {
+    if (item.ticketId != null && onUpdateTicket) {
+      await onUpdateTicket(item.ticketId, { checklist });
+      return;
+    }
+    if (item.id == null || !onUpdateItemChecklist || !machine) return;
+    const persisted = (
+      ["flags", "problems", "improvements", "repairs"] as const
+    ).some((key) =>
+      (machine[key] ?? []).some((entry) => Number(entry.id) === Number(item.id)),
+    );
+    if (!persisted) return;
+    await onUpdateItemChecklist(item.id, checklist);
+  };
+
   const setPmRef = (patch: Partial<NonNullable<Machine["pmRef"]>>) => {
     setDraft((d) => {
       if (!d) return d;
@@ -216,10 +239,9 @@ export function EditMachineDialog({
       return {
         ...d,
         pmRef: {
-          period: 6,
-          month: months[now.getMonth()],
-          year: now.getFullYear(),
-          ...d.pmRef,
+          period: d.pmRef?.period ?? 6,
+          month: d.pmRef?.month ?? months[now.getMonth()],
+          year: d.pmRef?.year ?? now.getFullYear(),
           ...patch,
         },
       };
@@ -558,6 +580,7 @@ const remove = async () => {
                 }
                 onDeleteLinked={onDeleteTicket ? deleteLinkedTicket : undefined}
                 onToggleLinked={onUpdateTicket ? toggleLinkedTicket : undefined}
+                onPersistChecklist={persistItemChecklist}
               />
             </TabsContent>
             <TabsContent value="problems" className="mt-0">
@@ -574,6 +597,7 @@ const remove = async () => {
                 }
                 onDeleteLinked={onDeleteTicket ? deleteLinkedTicket : undefined}
                 onToggleLinked={onUpdateTicket ? toggleLinkedTicket : undefined}
+                onPersistChecklist={persistItemChecklist}
               />
             </TabsContent>
             <TabsContent value="repairs" className="mt-0">
@@ -582,6 +606,7 @@ const remove = async () => {
                 onChange={(items) => set("repairs", items)}
                 placeholder="Nouvelle réparation…"
                 readOnly={readOnly}
+                onPersistChecklist={persistItemChecklist}
               />
             </TabsContent>
             <TabsContent value="improvements" className="mt-0">
@@ -590,6 +615,7 @@ const remove = async () => {
                 onChange={(items) => set("improvements", items)}
                 placeholder="Nouvelle amélioration…"
                 readOnly={readOnly}
+                onPersistChecklist={persistItemChecklist}
               />
             </TabsContent>
             <TabsContent value="tickets" className="mt-0 space-y-4">
@@ -703,6 +729,7 @@ function TodoEditor({
   onCreateLinked,
   onDeleteLinked,
   onToggleLinked,
+  onPersistChecklist,
 }: {
   items: TodoItem[];
   onChange: (items: TodoItem[]) => void;
@@ -712,6 +739,7 @@ function TodoEditor({
   onCreateLinked?: (text: string, itemId?: number) => Promise<void>;
   onDeleteLinked?: (ticketId: number) => Promise<void>;
   onToggleLinked?: (ticketId: number, completed: boolean) => Promise<void>;
+  onPersistChecklist?: (item: TodoItem, checklist: ChecklistItem[]) => Promise<void>;
 }) {
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
@@ -762,6 +790,14 @@ function TodoEditor({
   const updateText = (i: number, t: string) =>
     onChange(items.map((it, idx) => (idx === i ? { ...it, text: t } : it)));
 
+  const updateChecklist = (i: number, checklist: ChecklistItem[]) => {
+    const item = items[i];
+    if (!item) return;
+    const next = items.map((it, idx) => (idx === i ? { ...it, checklist } : it));
+    onChange(next);
+    void onPersistChecklist?.(next[i], checklist);
+  };
+
   return (
     <div className="space-y-3">
       {createsTicket && !readOnly && (
@@ -795,61 +831,73 @@ function TodoEditor({
           Aucun élément.
         </p>
       ) : (
-        <ul className="space-y-1.5">
+        <ul className="space-y-2">
           {items.map((it, i) => (
             <li
               key={it.ticketId != null ? `ticket-${it.ticketId}` : `local-${i}`}
               className={cn(
-                "group flex items-center gap-2 rounded-lg border bg-card px-2.5 py-1.5",
-                it.completed && "opacity-60",
+                "group rounded-xl border bg-card px-2.5 py-2",
+                it.completed && "opacity-70",
               )}
             >
-              <button
-                type="button"
-                onClick={() => toggle(i)}
-                disabled={readOnly}
-                className={cn(
-                  "flex h-5 w-5 shrink-0 items-center justify-center rounded-md border transition",
-                  it.completed
-                    ? "border-success bg-success text-white"
-                    : "border-border hover:border-primary",
-                )}
-                aria-label="Toggle"
-              >
-                {it.completed && <Check className="h-3.5 w-3.5" />}
-              </button>
-              <input
-                value={it.text}
-                onChange={(e) => updateText(i, e.target.value)}
-                readOnly={readOnly}
-                className={cn(
-                  "min-w-0 flex-1 bg-transparent text-sm outline-none",
-                  it.completed && "line-through",
-                )}
-              />
-              {it.ticketId != null && (
-                <span
-                  className="shrink-0 text-[10px] font-medium text-muted-foreground"
-                  title={`Ticket #${it.ticketId}`}
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => toggle(i)}
+                  disabled={readOnly}
+                  className={cn(
+                    "flex h-5 w-5 shrink-0 items-center justify-center rounded-md border transition",
+                    it.completed
+                      ? "border-success bg-success text-white"
+                      : "border-border hover:border-primary",
+                  )}
+                  aria-label="Toggle"
                 >
-                  #{it.ticketId}
-                </span>
-              )}
-              {it.completed && it.completedDate && (
-                <span className="shrink-0 text-xs text-muted-foreground">
-                  {it.completedDate}
-                </span>
-              )}
-              {!readOnly && (
-              <button
-                type="button"
-                onClick={() => remove(i)}
-                className="rounded-md p-1 text-muted-foreground opacity-0 transition hover:bg-destructive/10 hover:text-destructive group-hover:opacity-100"
-                aria-label="Supprimer"
-              >
-                <Trash2 className="h-3.5 w-3.5" />
-              </button>
-              )}
+                  {it.completed && <Check className="h-3.5 w-3.5" />}
+                </button>
+                <input
+                  value={it.text}
+                  onChange={(e) => updateText(i, e.target.value)}
+                  readOnly={readOnly}
+                  className={cn(
+                    "min-w-0 flex-1 bg-transparent text-sm outline-none",
+                    it.completed && "line-through",
+                  )}
+                />
+                <ProgressRing items={it.checklist} size={34} strokeWidth={3} />
+                {it.ticketId != null && (
+                  <span
+                    className="shrink-0 text-[10px] font-medium text-muted-foreground"
+                    title={`Ticket #${it.ticketId}`}
+                  >
+                    #{it.ticketId}
+                  </span>
+                )}
+                <ProgressStatusBadge items={it.checklist} />
+                {it.completed && it.completedDate && (
+                  <span className="shrink-0 text-xs text-muted-foreground">
+                    {it.completedDate}
+                  </span>
+                )}
+                {!readOnly && (
+                <button
+                  type="button"
+                  onClick={() => remove(i)}
+                  className="rounded-md p-1 text-muted-foreground opacity-0 transition hover:bg-destructive/10 hover:text-destructive group-hover:opacity-100"
+                  aria-label="Supprimer"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
+                )}
+              </div>
+              <div className="mt-2 border-t border-dashed pt-2 pl-7">
+                <ItemChecklist
+                  items={it.checklist ?? []}
+                  onChange={(checklist) => updateChecklist(i, checklist)}
+                  readOnly={readOnly}
+                  compact
+                />
+              </div>
             </li>
           ))}
         </ul>

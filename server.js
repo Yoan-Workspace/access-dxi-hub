@@ -456,11 +456,88 @@ function ensureItemId(machine, item) {
   return item.id;
 }
 
+function ensureAllMachineItemIds(machine) {
+  let changed = false;
+  for (const key of ITEM_LIST_KEYS) {
+    if (!Array.isArray(machine[key])) continue;
+    for (const item of machine[key]) {
+      if (item?.id == null) {
+        ensureItemId(machine, item);
+        changed = true;
+      }
+    }
+  }
+  return changed;
+}
+
 function bindTicketAndItem(machine, ticket, item) {
   if (!ticket || !item) return;
   ensureItemId(machine, item);
   item.ticketId = ticket.id;
   ticket.itemId = Number(item.id);
+}
+
+function nextChecklistId(items) {
+  let max = 0;
+  for (const item of items ?? []) {
+    const id = Number(item?.id);
+    if (Number.isFinite(id) && id > max) max = id;
+  }
+  return max + 1;
+}
+
+function normalizeChecklist(input) {
+  if (!Array.isArray(input)) return [];
+  const items = [];
+  const seen = new Set();
+  for (const raw of input) {
+    const text = String(raw?.text ?? "").trim().slice(0, 400);
+    if (!text) continue;
+    let id = Number(raw?.id);
+    if (!Number.isFinite(id) || id <= 0 || seen.has(id)) {
+      id = nextChecklistId(items);
+    }
+    seen.add(id);
+    const completed = Boolean(raw?.completed);
+    const item = { id, text, completed };
+    if (completed) {
+      const completedAt = String(raw?.completedAt ?? "").trim();
+      item.completedAt = completedAt || new Date().toISOString().slice(0, 19);
+    }
+    items.push(item);
+  }
+  return items;
+}
+
+const ITEM_LIST_KEYS = ["flags", "problems", "improvements", "repairs"];
+
+function findMachineItemById(machine, itemId) {
+  const id = Number(itemId);
+  if (!Number.isFinite(id)) return null;
+  for (const key of ITEM_LIST_KEYS) {
+    const list = machine[key];
+    if (!Array.isArray(list)) continue;
+    const item = list.find((entry) => Number(entry.id) === id);
+    if (item) return { item, key };
+  }
+  return null;
+}
+
+function applyChecklistToLinkedItem(machine, ticket) {
+  if (!machine || !ticket) return null;
+  const item = findLinkedItem(machine, ticket.category, ticket);
+  if (!item) return null;
+  item.checklist = normalizeChecklist(ticket.checklist);
+  return item;
+}
+
+function applyChecklistToLinkedTicket(data, item) {
+  if (item?.ticketId == null) return null;
+  const ticket = data.tickets.find((t) => Number(t.id) === Number(item.ticketId));
+  if (!ticket) return null;
+  ticket.checklist = normalizeChecklist(item.checklist);
+  ticket.updatedAt = new Date().toISOString().slice(0, 19);
+  return ticket;
 }
 
 function findLinkedItem(machine, category, ticket) {
@@ -495,6 +572,7 @@ function addTicketToMachineCategory(machine, category, text, ticket) {
     }
     if (ticket) bindTicketAndItem(machine, ticket, item);
     else ensureItemId(machine, item);
+    if (ticket?.checklist) item.checklist = normalizeChecklist(ticket.checklist);
     return item;
   }
 
@@ -503,6 +581,7 @@ function addTicketToMachineCategory(machine, category, text, ticket) {
     text,
     completed: false,
   };
+  if (ticket?.checklist) item.checklist = normalizeChecklist(ticket.checklist);
   list.push(item);
   if (ticket) bindTicketAndItem(machine, ticket, item);
   return item;
@@ -631,7 +710,13 @@ function createLinkedTicket(data, machine, user, category, text, completed, now,
     ticket.closedAt = now;
     ticket.closedBy = user.displayName;
   }
-  if (item) bindTicketAndItem(machine, ticket, item);
+  if (item) {
+    bindTicketAndItem(machine, ticket, item);
+    if (Array.isArray(item.checklist)) {
+      ticket.checklist = normalizeChecklist(item.checklist);
+    }
+  }
+  if (!Array.isArray(ticket.checklist)) ticket.checklist = [];
   data.tickets.push(ticket);
   console.log(
     `Ticket #${ticket.id} créé (${category}) pour ${machine.name}${
@@ -711,6 +796,12 @@ function syncMachineLinkedTickets(data, previous, machine, user) {
       }
 
       bindTicketAndItem(machine, ticket, item);
+
+      if (Array.isArray(item.checklist)) {
+        ticket.checklist = normalizeChecklist(item.checklist);
+      } else if (Array.isArray(ticket.checklist)) {
+        item.checklist = normalizeChecklist(ticket.checklist);
+      }
 
       if (ticket.comment !== text) {
         ticket.comment = text;
@@ -1465,6 +1556,7 @@ app.post("/api/tickets", authMiddleware, (req, res) => {
     createdAt: now,
     updatedAt: now,
     ...(itemId != null ? { itemId: Number(itemId) } : {}),
+    checklist: normalizeChecklist(req.body?.checklist),
   };
 
   addTicketToMachineCategory(machine, category, text, ticket);
@@ -1487,7 +1579,7 @@ app.put("/api/tickets/:id", authMiddleware, requireRole("admin", "technicien"), 
   }
 
   const current = data.tickets[index];
-  const { category, comment, status } = req.body ?? {};
+  const { category, comment, status, checklist } = req.body ?? {};
   const allowedStatus = ["open", "closed"];
 
   if (category && !["probleme", "flag"].includes(category)) {
@@ -1507,6 +1599,11 @@ app.put("/api/tickets/:id", authMiddleware, requireRole("admin", "technicien"), 
     status: status ?? current.status,
     updatedAt: new Date().toISOString().slice(0, 19),
   };
+
+  if (checklist !== undefined) {
+    updated.checklist = normalizeChecklist(checklist);
+  }
+  if (!Array.isArray(updated.checklist)) updated.checklist = [];
 
   if (status === "closed" && current.status === "open") {
     updated.closedAt = updated.updatedAt;
@@ -1549,6 +1646,7 @@ app.put("/api/tickets/:id", authMiddleware, requireRole("admin", "technicien"), 
       const linked = findLinkedItem(machine, updated.category, updated);
       if (linked) bindTicketAndItem(machine, updated, linked);
     }
+    applyChecklistToLinkedItem(machine, updated);
   }
 
   writeData(data);
@@ -1637,6 +1735,33 @@ app.get("/api/events", (req, res) => {
   });
 });
 
+app.put(
+  "/api/machines/:id/items/:itemId/checklist",
+  authMiddleware,
+  requireRole("admin", "technicien"),
+  (req, res) => {
+    const id = Number(req.params.id);
+    const itemId = Number(req.params.itemId);
+    const data = ensureDataShape(readData());
+    const machine = findMachine(data, id);
+
+    if (!machine) {
+      return res.status(404).json({ error: "Machine introuvable" });
+    }
+
+    const found = findMachineItemById(machine, itemId);
+    if (!found) {
+      return res.status(404).json({ error: "Élément introuvable" });
+    }
+
+    found.item.checklist = normalizeChecklist(req.body?.checklist);
+    const ticket = applyChecklistToLinkedTicket(data, found.item);
+    writeData(data);
+    notifyClients();
+    res.json({ machine, ticket: ticket ?? null });
+  },
+);
+
 app.get("/api/machines/:id/live-status", authMiddleware, async (req, res) => {
   const id = Number(req.params.id);
   const data = ensureDataShape(readData());
@@ -1667,6 +1792,11 @@ app.get("/api/machines/live-status", authMiddleware, (_req, res) => {
 
 app.get("/api/machines", authMiddleware, (req, res) => {
   const data = ensureDataShape(readData());
+  let changed = false;
+  for (const machine of data.machines) {
+    if (ensureAllMachineItemIds(machine)) changed = true;
+  }
+  if (changed) writeData(data);
   res.json({ machines: data.machines });
 });
 
@@ -1685,6 +1815,7 @@ app.put(
 
     const previous = data.machines[index];
     const machine = { ...req.body, id };
+    ensureAllMachineItemIds(machine);
     const { created: createdTickets } = syncMachineLinkedTickets(
       data,
       previous,
@@ -1720,6 +1851,7 @@ app.post(
       ...req.body,
       id: nextId(data.machines),
     };
+    ensureAllMachineItemIds(newMachine);
 
     if (!newMachine.name?.trim()) {
       return res.status(400).json({ error: "Le nom de la machine est requis" });

@@ -8,22 +8,20 @@ import {
   Lightbulb,
   MapPin,
   Pencil,
-  Ticket,
+  Ticket as TicketIcon,
   Wrench,
   XCircle,
 } from "lucide-react";
 import type { EditMachineTab } from "@/components/EditMachineDialog";
-import type { Machine } from "@/lib/types";
+import type { ChecklistItem, Machine, Ticket } from "@/lib/types";
 import { mpInstrumentHomeUrl } from "@/lib/labManager";
 import { machineKind } from "@/lib/types";
 import { waveForMachine } from "@/lib/machineWave";
 import { effectiveStatus, STATUS_LABELS } from "@/lib/machineEtat";
+import { ProgressRing } from "@/components/ProgressRing";
 import { cn } from "@/lib/utils";
 
-const statusStyle: Record<
-  Machine["status"],
-  { color: string; ring: string }
-> = {
+const statusStyle: Record<Machine["status"], { color: string; ring: string }> = {
   ok: {
     color: "text-success",
     ring: "bg-success",
@@ -59,8 +57,18 @@ function fmtDate(iso: string) {
 }
 
 const monthNames = [
-  "Janvier", "Février", "Mars", "Avril", "Mai", "Juin",
-  "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre",
+  "Janvier",
+  "Février",
+  "Mars",
+  "Avril",
+  "Mai",
+  "Juin",
+  "Juillet",
+  "Août",
+  "Septembre",
+  "Octobre",
+  "Novembre",
+  "Décembre",
 ];
 
 const monthMap: Record<string, number> = {
@@ -83,11 +91,7 @@ function getNextPm(machine: Machine) {
   const monthIndex = monthMap[machine.pmRef.month];
   if (monthIndex == null) return null;
 
-  const lastPmDate = new Date(
-    machine.pmRef.year,
-    monthIndex,
-    1,
-  );
+  const lastPmDate = new Date(machine.pmRef.year, monthIndex, 1);
   const dueDate = new Date(lastPmDate);
   dueDate.setMonth(dueDate.getMonth() + 6);
 
@@ -103,10 +107,7 @@ function pmDueThisMonthLabel(machine: Machine): string | null {
   const { dueDate, nextType } = next;
   const now = new Date();
 
-  if (
-    dueDate.getMonth() !== now.getMonth() ||
-    dueDate.getFullYear() !== now.getFullYear()
-  ) {
+  if (dueDate.getMonth() !== now.getMonth() || dueDate.getFullYear() !== now.getFullYear()) {
     return null;
   }
 
@@ -118,10 +119,7 @@ function maintenanceDue(machine: Machine, kind: ReturnType<typeof machineKind>) 
     return true;
   }
 
-  if (
-    machine.asdStatus !== "valid" &&
-    machine.asdStatus !== "fail_precision"
-  ) {
+  if (machine.asdStatus !== "valid" && machine.asdStatus !== "fail_precision") {
     return true;
   }
 
@@ -133,16 +131,10 @@ function maintenanceDue(machine: Machine, kind: ReturnType<typeof machineKind>) 
 
   if (dueDate < currentMonth) return true;
 
-  return (
-    dueDate.getMonth() === now.getMonth() &&
-    dueDate.getFullYear() === now.getFullYear()
-  );
+  return dueDate.getMonth() === now.getMonth() && dueDate.getFullYear() === now.getFullYear();
 }
 
-function cardTopBarClass(
-  machine: Machine,
-  kind: ReturnType<typeof machineKind>,
-) {
+function cardTopBarClass(machine: Machine, kind: ReturnType<typeof machineKind>) {
   const etat = effectiveStatus(machine);
   if (etat === "danger") return "bg-danger";
   if (etat === "maintenance") return "bg-maintenance";
@@ -154,12 +146,14 @@ export function MachineCard({
   machine,
   ticketsOpen = 0,
   ticketsClosed = 0,
+  tickets = [],
   liveColor,
   onEdit,
 }: {
   machine: Machine;
   ticketsOpen?: number;
   ticketsClosed?: number;
+  tickets?: Ticket[];
   liveColor?: "red" | "green" | "blue" | "unknown";
   onEdit: (tab?: EditMachineTab) => void;
 }) {
@@ -179,6 +173,9 @@ export function MachineCard({
   const repairsDone = doneCount(machine.repairs);
   const topBarClass = cardTopBarClass(machine, kind);
   const pmThisMonth = pmDueThisMonthLabel(machine);
+  const openTicketTasks = tickets
+    .filter((ticket) => ticket.status === "open")
+    .flatMap((ticket) => ticket.checklist ?? []);
 
   return (
     <div
@@ -191,12 +188,7 @@ export function MachineCard({
         "hover:shadow-[0_8px_30px_-12px_rgba(0,0,0,0.12)]",
       )}
     >
-      <span
-        className={cn(
-          "absolute left-5 right-5 top-0 h-[3px] rounded-b-full",
-          topBarClass,
-        )}
-      />
+      <span className={cn("absolute left-5 right-5 top-0 h-[3px] rounded-b-full", topBarClass)} />
 
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
@@ -228,9 +220,7 @@ export function MachineCard({
             )}
           </div>
 
-          <h3 className="mt-1.5 truncate text-lg font-semibold tracking-tight">
-            {machine.name}
-          </h3>
+          <h3 className="mt-1.5 truncate text-lg font-semibold tracking-tight">{machine.name}</h3>
 
           <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
             <span className="inline-flex items-center gap-1">
@@ -260,8 +250,7 @@ export function MachineCard({
                 {liveColor && liveColor !== "unknown" && (
                   <span
                     title={
-                      liveColor === "red" ? "Problème" :
-                      liveColor === "blue" ? "Maintenance" : "OK"
+                      liveColor === "red" ? "Problème" : liveColor === "blue" ? "Maintenance" : "OK"
                     }
                     className={cn(
                       "inline-block h-2.5 w-2.5 rounded-full ring-2 ring-background",
@@ -330,6 +319,7 @@ export function MachineCard({
           done={flagsDone}
           label="Flags"
           tone="warning"
+          tasks={(machine.flags ?? []).flatMap((item) => item.checklist ?? [])}
           onClick={() => onEdit("flags")}
         />
 
@@ -339,6 +329,7 @@ export function MachineCard({
           done={probsDone}
           label="Probl."
           tone="danger"
+          tasks={(machine.problems ?? []).flatMap((item) => item.checklist ?? [])}
           onClick={() => onEdit("problems")}
         />
 
@@ -348,6 +339,7 @@ export function MachineCard({
           done={repairsDone}
           label="Répar."
           tone="warning"
+          tasks={(machine.repairs ?? []).flatMap((item) => item.checklist ?? [])}
           onClick={() => onEdit("repairs")}
         />
 
@@ -357,6 +349,7 @@ export function MachineCard({
           done={improvDone}
           label="Improv."
           tone="improve"
+          tasks={(machine.improvements ?? []).flatMap((item) => item.checklist ?? [])}
           onClick={() => onEdit("improvements")}
         />
       </div>
@@ -376,16 +369,21 @@ export function MachineCard({
         )}
       >
         <span className="flex items-center gap-1.5 text-[10px] font-medium">
-          <Ticket className="h-3.5 w-3.5 shrink-0" />
+          <TicketIcon className="h-3.5 w-3.5 shrink-0" />
           Tickets
         </span>
-        <span className="text-xs font-semibold tabular-nums">
-          <span className={ticketsOpen > 0 ? "text-warning" : "text-foreground"}>
-            {ticketsOpen} ouvert{ticketsOpen > 1 ? "s" : ""}
-          </span>
-          <span className="mx-1 text-muted-foreground">·</span>
-          <span className="text-muted-foreground">
-            {ticketsClosed} fermé{ticketsClosed > 1 ? "s" : ""}
+        <span className="flex items-center gap-2">
+          {openTicketTasks.length > 0 && (
+            <ProgressRing items={openTicketTasks} size={32} strokeWidth={3} />
+          )}
+          <span className="text-xs font-semibold tabular-nums">
+            <span className={ticketsOpen > 0 ? "text-warning" : "text-foreground"}>
+              {ticketsOpen} ouvert{ticketsOpen > 1 ? "s" : ""}
+            </span>
+            <span className="mx-1 text-muted-foreground">·</span>
+            <span className="text-muted-foreground">
+              {ticketsClosed} fermé{ticketsClosed > 1 ? "s" : ""}
+            </span>
           </span>
         </span>
       </button>
@@ -412,10 +410,7 @@ function Badge({
 
   return (
     <span
-      className={cn(
-        "inline-flex items-center gap-1 rounded-md px-2 py-0.5 font-medium",
-        toneCls,
-      )}
+      className={cn("inline-flex items-center gap-1 rounded-md px-2 py-0.5 font-medium", toneCls)}
     >
       {icon}
       {label}
@@ -429,6 +424,7 @@ function Counter({
   done,
   label,
   tone,
+  tasks,
   onClick,
 }: {
   icon: React.ReactNode;
@@ -436,6 +432,7 @@ function Counter({
   done: number;
   label: string;
   tone: "danger" | "warning" | "improve";
+  tasks?: ChecklistItem[];
   onClick: () => void;
 }) {
   const active = inProgress > 0;
@@ -488,13 +485,16 @@ function Counter({
       </div>
 
       <div className="space-y-0.5 text-[10px] leading-tight tabular-nums">
-        <div className={cn("font-semibold", inProgressCls)}>
-          {inProgress} en cours
-        </div>
+        <div className={cn("font-semibold", inProgressCls)}>{inProgress} en cours</div>
         <div className="font-medium text-muted-foreground">
           {done} terminé{done > 1 ? "s" : ""}
         </div>
       </div>
+      {(tasks?.length ?? 0) > 0 && (
+        <div className="flex justify-center pt-0.5">
+          <ProgressRing items={tasks} size={28} strokeWidth={3} />
+        </div>
+      )}
     </button>
   );
 }
@@ -503,9 +503,7 @@ function systemCheckLabel(s: Machine["asdStatus"]) {
   return s === "valid" ? "valide" : "non valide";
 }
 
-function systemCheckTone(
-  s: Machine["asdStatus"],
-): "success" | "danger" | "warning" | "neutral" {
+function systemCheckTone(s: Machine["asdStatus"]): "success" | "danger" | "warning" | "neutral" {
   return s === "valid" ? "success" : "danger";
 }
 
@@ -526,9 +524,7 @@ function asdLabel(s: Machine["asdStatus"]) {
   }
 }
 
-function asdTone(
-  s: Machine["asdStatus"],
-): "success" | "danger" | "warning" | "neutral" {
+function asdTone(s: Machine["asdStatus"]): "success" | "danger" | "warning" | "neutral" {
   switch (s) {
     case "valid":
       return "success";

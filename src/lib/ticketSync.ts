@@ -1,3 +1,4 @@
+import { sameChecklist } from "@/lib/checklist";
 import type { Machine, Ticket, TodoItem } from "@/lib/types";
 
 function todayFr() {
@@ -74,6 +75,7 @@ export function applyTicketsToMachine(
         text: ticket.comment,
         completed: ticket.status === "closed",
         ticketId: ticket.id,
+        checklist: ticket.checklist ?? [],
         ...(ticket.status === "closed" ? { completedDate: todayFr() } : {}),
       });
       continue;
@@ -81,6 +83,11 @@ export function applyTicketsToMachine(
 
     item.ticketId = ticket.id;
     if (ticket.itemId != null && item.id == null) item.id = ticket.itemId;
+    const ticketList = ticket.checklist ?? [];
+    const itemList = item.checklist ?? [];
+    if (!sameChecklist(itemList, ticketList) && !(ticketList.length === 0 && itemList.length > 0)) {
+      item.checklist = ticketList;
+    }
     // Ne pas écraser le texte machine par un ticket périmé : les deux
     // sont synchronisés à l'écriture (PUT machine / PUT ticket).
 
@@ -214,9 +221,36 @@ export function mergeNewTicketItems(machine: Machine, tickets: Ticket[]): Machin
         text: ticket.comment,
         completed: ticket.status === "closed",
         ticketId: ticket.id,
+        checklist: ticket.checklist ?? [],
         ...(ticket.status === "closed" ? { completedDate: todayFr() } : {}),
       },
     ];
+  }
+
+  return changed ? next : machine;
+}
+
+/** Aligne les checklists des flags / problèmes sur les tickets liés. */
+export function syncChecklistsFromTickets(machine: Machine, tickets: Ticket[]): Machine {
+  let changed = false;
+  const next: Machine = {
+    ...machine,
+    flags: (machine.flags ?? []).map((item) => ({ ...item })),
+    problems: (machine.problems ?? []).map((item) => ({ ...item })),
+  };
+
+  for (const key of ["flags", "problems"] as const) {
+    next[key] = next[key].map((item) => {
+      if (item.ticketId == null) return item;
+      const ticket = tickets.find((entry) => sameId(entry.id, item.ticketId));
+      if (!ticket) return item;
+      const ticketList = ticket.checklist ?? [];
+      const itemList = item.checklist ?? [];
+      if (sameChecklist(itemList, ticketList)) return item;
+      if (ticketList.length === 0 && itemList.length > 0) return item;
+      changed = true;
+      return { ...item, checklist: ticketList };
+    });
   }
 
   return changed ? next : machine;

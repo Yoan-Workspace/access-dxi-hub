@@ -42,9 +42,10 @@ import {
   fetchAllLiveStatus,
   resetUserPassword,
   updateMachine,
+  updateMachineItemChecklist,
   updateTicket,
 } from "@/lib/api";
-import type { Machine, Ticket, User } from "@/lib/types";
+import type { ChecklistItem, Machine, Ticket, User } from "@/lib/types";
 import { machineKind } from "@/lib/types";
 import { useAuth } from "@/lib/auth";
 import {
@@ -52,6 +53,7 @@ import {
   canCreateTicket,
   canDeleteMachine,
   canEditMachine,
+  canEditTicket,
   canManageUsers,
   isReadOnlyUser,
   roleLabel,
@@ -59,7 +61,7 @@ import {
 import { useTheme } from "@/lib/theme";
 import { FALCON_MP_LAB_DASHBOARD_URL } from "@/lib/labManager";
 import { afterUiSettled } from "@/lib/ui";
-import { applyTicketsToMachine, applyTicketsToMachines } from "@/lib/ticketSync";
+import { applyTicketsToMachine, applyTicketsToMachines, syncChecklistsFromTickets } from "@/lib/ticketSync";
 import { effectiveStatus, hasOpenProblems } from "@/lib/machineEtat";
 import { toast } from "sonner";
 import { DxiWaveNote } from "@/components/DxiWaveNote";
@@ -254,6 +256,7 @@ function HomePage() {
         comment: ticket.comment,
         status: ticket.status,
         updatedAt: ticket.updatedAt,
+        checklist: ticket.checklist,
       })),
     });
     if (!lastRemoteSigRef.current) {
@@ -406,10 +409,10 @@ function HomePage() {
       input,
     }: {
       id: number;
-      input: Partial<Pick<Ticket, "category" | "comment" | "status">>;
+      input: Partial<Pick<Ticket, "category" | "comment" | "status" | "checklist">>;
     }) => updateTicket(id, input),
     onMutate: markLocalWrite,
-    onSuccess: ({ ticket, machine }) => {
+    onSuccess: ({ ticket, machine }, { input }) => {
       if (!ticket?.id) {
         void qc.invalidateQueries({ queryKey: ["tickets"] });
         void qc.invalidateQueries({ queryKey: ["machines"] });
@@ -431,9 +434,18 @@ function HomePage() {
         });
       });
 
+      const checklistOnly =
+        input.checklist !== undefined &&
+        input.category === undefined &&
+        input.comment === undefined &&
+        input.status === undefined;
+
       setEditing((current) => {
         if (!current || Number(current.id) !== Number(ticket.machineId)) {
           return current;
+        }
+        if (checklistOnly) {
+          return syncChecklistsFromTickets(current, allTickets);
         }
         const base =
           machine && Number(machine.id) === Number(current.id)
@@ -446,7 +458,7 @@ function HomePage() {
         return applyTicketsToMachine(base, allTickets);
       });
 
-      toast.success("Ticket mis à jour");
+      if (!checklistOnly) toast.success("Ticket mis à jour");
     },
     onError: (e) => toast.error(`Échec du ticket : ${(e as Error).message}`),
   });
@@ -488,6 +500,30 @@ function HomePage() {
       toast.success("Ticket supprimé");
     },
     onError: (e) => toast.error(`Échec du ticket : ${(e as Error).message}`),
+  });
+
+  const updateItemChecklistMutation = useMutation({
+    mutationFn: ({
+      machineId,
+      itemId,
+      checklist,
+    }: {
+      machineId: number;
+      itemId: number;
+      checklist: ChecklistItem[];
+    }) => updateMachineItemChecklist(machineId, itemId, checklist),
+    onMutate: markLocalWrite,
+    onSuccess: ({ machine, ticket }) => {
+      qc.setQueryData<Machine[]>(["machines"], (prev) =>
+        prev?.map((m) => (Number(m.id) === Number(machine.id) ? machine : m)) ?? prev,
+      );
+      if (ticket) {
+        qc.setQueryData<Ticket[]>(["tickets"], (prev) =>
+          (prev ?? []).map((t) => (Number(t.id) === Number(ticket.id) ? ticket : t)),
+        );
+      }
+    },
+    onError: (e) => toast.error(`Échec des tâches : ${(e as Error).message}`),
   });
 
   const refreshUsers = async () => {
@@ -718,6 +754,7 @@ function HomePage() {
                     machine={m}
                     ticketsOpen={ticketStats?.open ?? 0}
                     ticketsClosed={ticketStats?.closed ?? 0}
+                    tickets={ticketStats?.items ?? []}
                     liveColor={liveStatuses[m.id]?.color}
                     onEdit={(tab) => openEdit(m, tab)}
                   />
@@ -761,6 +798,17 @@ function HomePage() {
         onDeleteTicket={async (id) => {
           await deleteTicketMutation.mutateAsync(id);
         }}
+        onUpdateItemChecklist={
+          API_CONFIGURED && canEditTicket(user?.role) && editing
+            ? async (itemId, checklist) => {
+                await updateItemChecklistMutation.mutateAsync({
+                  machineId: editing.id,
+                  itemId,
+                  checklist,
+                });
+              }
+            : undefined
+        }
         onCreateTicket={
           API_CONFIGURED && canCreateTicket(user?.role)
             ? async (input) => createTicketMutation.mutateAsync(input)

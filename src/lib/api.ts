@@ -187,7 +187,7 @@ export async function createTicket(input: {
 
 export async function updateTicket(
   id: number,
-  input: Partial<Pick<Ticket, "category" | "comment" | "status">>,
+  input: Partial<Pick<Ticket, "category" | "comment" | "status" | "checklist">>,
 ): Promise<{ ticket: Ticket; machine?: Machine | null }> {
   const data = (await apiFetch(`/api/tickets/${id}`, {
     method: "PUT",
@@ -199,6 +199,17 @@ export async function updateTicket(
   }
 
   return { ticket: data as Ticket };
+}
+
+export async function updateMachineItemChecklist(
+  machineId: number,
+  itemId: number,
+  checklist: Ticket["checklist"],
+): Promise<{ machine: Machine; ticket?: Ticket | null }> {
+  return (await apiFetch(`/api/machines/${machineId}/items/${itemId}/checklist`, {
+    method: "PUT",
+    body: JSON.stringify({ checklist: checklist ?? [] }),
+  })) as { machine: Machine; ticket?: Ticket | null };
 }
 
 export async function deleteTicket(

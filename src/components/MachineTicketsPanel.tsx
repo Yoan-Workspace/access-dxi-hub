@@ -1,12 +1,10 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Loader2, Trash2 } from "lucide-react";
-import type { Ticket, TicketCategory } from "@/lib/types";
-import {
-  TICKET_CATEGORY_LABELS,
-  canDeleteTicket,
-  canEditTicket,
-} from "@/lib/permissions";
+import type { ChecklistItem, Ticket, TicketCategory } from "@/lib/types";
+import { TICKET_CATEGORY_LABELS, canDeleteTicket, canEditTicket } from "@/lib/permissions";
 import { useAuth } from "@/lib/auth";
+import { ItemChecklist } from "@/components/ItemChecklist";
+import { ProgressRing, ProgressStatusBadge } from "@/components/ProgressRing";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import {
@@ -39,7 +37,7 @@ interface Props {
   tickets: Ticket[];
   onUpdate: (
     id: number,
-    input: Partial<Pick<Ticket, "category" | "comment" | "status">>,
+    input: Partial<Pick<Ticket, "category" | "comment" | "status" | "checklist">>,
   ) => Promise<void>;
   onDelete: (id: number) => Promise<void>;
 }
@@ -90,6 +88,11 @@ function TicketRow({
   const [category, setCategory] = useState(ticket.category);
   const [comment, setComment] = useState(ticket.comment);
   const [saving, setSaving] = useState(false);
+  const [checklist, setChecklist] = useState<ChecklistItem[]>(ticket.checklist ?? []);
+
+  useEffect(() => {
+    setChecklist(ticket.checklist ?? []);
+  }, [ticket.checklist]);
 
   const save = async () => {
     setSaving(true);
@@ -112,33 +115,47 @@ function TicketRow({
     }
   };
 
+  const persistChecklist = async (next: ChecklistItem[]) => {
+    const previous = checklist;
+    setChecklist(next);
+    try {
+      await onUpdate(ticket.id, { checklist: next });
+    } catch {
+      setChecklist(previous);
+    }
+  };
+
   return (
     <li className="rounded-xl border bg-card p-4">
-      <div className="flex flex-wrap items-start justify-between gap-2">
-        <div>
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              #{ticket.id}
-            </span>
-            <span
-              className={cn(
-                "rounded-full px-2 py-0.5 text-[10px] font-semibold",
-                ticket.status === "open"
-                  ? "bg-warning/15 text-warning"
-                  : "bg-muted text-muted-foreground",
-              )}
-            >
-              {ticket.status === "open" ? "Ouvert" : "Fermé"}
-            </span>
-            <span className="rounded-full bg-secondary px-2 py-0.5 text-[10px] font-medium">
-              {TICKET_CATEGORY_LABELS[ticket.category]}
-            </span>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="flex min-w-0 flex-1 items-start gap-3">
+          <ProgressRing items={checklist} />
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                #{ticket.id}
+              </span>
+              <span
+                className={cn(
+                  "rounded-full px-2 py-0.5 text-[10px] font-semibold",
+                  ticket.status === "open"
+                    ? "bg-warning/15 text-warning"
+                    : "bg-muted text-muted-foreground",
+                )}
+              >
+                {ticket.status === "open" ? "Ouvert" : "Fermé"}
+              </span>
+              <span className="rounded-full bg-secondary px-2 py-0.5 text-[10px] font-medium">
+                {TICKET_CATEGORY_LABELS[ticket.category]}
+              </span>
+              <ProgressStatusBadge items={checklist} />
+            </div>
+            <p className="mt-2 text-sm whitespace-pre-wrap">{ticket.comment}</p>
+            <p className="mt-2 text-[11px] text-muted-foreground">
+              Par {ticket.createdByName} · {fmtDate(ticket.createdAt)}
+              {ticket.closedAt && ` · Fermé le ${fmtDate(ticket.closedAt)}`}
+            </p>
           </div>
-          <p className="mt-2 text-sm whitespace-pre-wrap">{ticket.comment}</p>
-          <p className="mt-2 text-[11px] text-muted-foreground">
-            Par {ticket.createdByName} · {fmtDate(ticket.createdAt)}
-            {ticket.closedAt && ` · Fermé le ${fmtDate(ticket.closedAt)}`}
-          </p>
         </div>
 
         <div className="flex flex-wrap gap-2">
@@ -176,36 +193,36 @@ function TicketRow({
         </div>
       </div>
 
+      <div className="mt-3 border-t pt-3">
+        <ItemChecklist
+          items={checklist}
+          onChange={(next) => void persistChecklist(next)}
+          readOnly={!editable}
+        />
+      </div>
+
       {editing && editable && (
         <div className="mt-4 space-y-3 border-t pt-4">
           <div className="space-y-1.5">
             <Label>Catégorie</Label>
-            <Select
-              value={category}
-              onValueChange={(v) => setCategory(v as TicketCategory)}
-            >
+            <Select value={category} onValueChange={(v) => setCategory(v as TicketCategory)}>
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {(categories.includes(category)
-                  ? categories
-                  : [category, ...categories]
-                ).map((c) => (
-                  <SelectItem key={c} value={c}>
-                    {TICKET_CATEGORY_LABELS[c]}
-                  </SelectItem>
-                ))}
+                {(categories.includes(category) ? categories : [category, ...categories]).map(
+                  (c) => (
+                    <SelectItem key={c} value={c}>
+                      {TICKET_CATEGORY_LABELS[c]}
+                    </SelectItem>
+                  ),
+                )}
               </SelectContent>
             </Select>
           </div>
           <div className="space-y-1.5">
             <Label>Commentaire</Label>
-            <Textarea
-              value={comment}
-              onChange={(e) => setComment(e.target.value)}
-              rows={3}
-            />
+            <Textarea value={comment} onChange={(e) => setComment(e.target.value)} rows={3} />
           </div>
           <Button size="sm" onClick={() => void save()} disabled={saving}>
             {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Enregistrer"}

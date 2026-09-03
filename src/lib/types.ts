@@ -10,6 +10,13 @@ export type AdamStatus = "fonctionnelle" | "non_fonctionnelle";
 export type MonthlyMaint = "done" | "not_done";
 export type Localisation = "BSL2" | "Thermal" | string;
 
+export interface ChecklistItem {
+  id: number;
+  text: string;
+  completed: boolean;
+  completedAt?: string;
+}
+
 export interface TodoItem {
   /** Identifiant stable de la ligne (problème / flag) */
   id?: number;
@@ -18,6 +25,8 @@ export interface TodoItem {
   completedDate?: string;
   /** Lien vers le ticket associé */
   ticketId?: number;
+  /** Actions à cocher avant clôture */
+  checklist?: ChecklistItem[];
 }
 
 export interface PmRef {
@@ -76,6 +85,8 @@ export interface Ticket {
   closedBy?: string;
   /** Identifiant de la ligne problème / flag liée */
   itemId?: number;
+  /** Actions à cocher avant clôture */
+  checklist?: ChecklistItem[];
 }
 
 export function machineKind(m: Pick<Machine, "name">): MachineKind {
