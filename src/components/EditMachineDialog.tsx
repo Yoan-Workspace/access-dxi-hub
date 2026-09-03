@@ -743,6 +743,7 @@ function TodoEditor({
 }) {
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
+  const [openTasks, setOpenTasks] = useState<Record<string, boolean>>({});
 
   const add = async () => {
     const t = text.trim();
@@ -832,9 +833,12 @@ function TodoEditor({
         </p>
       ) : (
         <ul className="space-y-2">
-          {items.map((it, i) => (
+          {items.map((it, i) => {
+            const itemKey = it.ticketId != null ? `ticket-${it.ticketId}` : `local-${it.id ?? i}`;
+            const tasksOpen = openTasks[itemKey] === true;
+            return (
             <li
-              key={it.ticketId != null ? `ticket-${it.ticketId}` : `local-${i}`}
+              key={itemKey}
               className={cn(
                 "group rounded-xl border bg-card px-2.5 py-2",
                 it.completed && "opacity-70",
@@ -864,7 +868,18 @@ function TodoEditor({
                     it.completed && "line-through",
                   )}
                 />
-                <ProgressRing items={it.checklist} size={34} strokeWidth={3} />
+                <button
+                  type="button"
+                  onClick={() =>
+                    setOpenTasks((current) => ({ ...current, [itemKey]: !tasksOpen }))
+                  }
+                  className="rounded-full p-0.5 transition hover:bg-muted/70 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                  title={tasksOpen ? "Réduire les tâches" : "Afficher les tâches"}
+                  aria-expanded={tasksOpen}
+                  aria-label={tasksOpen ? "Réduire les tâches" : "Afficher les tâches"}
+                >
+                  <ProgressRing items={it.checklist} size={34} strokeWidth={3} />
+                </button>
                 {it.ticketId != null && (
                   <span
                     className="shrink-0 text-[10px] font-medium text-muted-foreground"
@@ -890,16 +905,21 @@ function TodoEditor({
                 </button>
                 )}
               </div>
-              <div className="mt-2 border-t border-dashed pt-2 pl-7">
+              <div className="mt-1">
                 <ItemChecklist
                   items={it.checklist ?? []}
                   onChange={(checklist) => updateChecklist(i, checklist)}
                   readOnly={readOnly}
                   compact
+                  open={tasksOpen}
+                  onOpenChange={(next) =>
+                    setOpenTasks((current) => ({ ...current, [itemKey]: next }))
+                  }
                 />
               </div>
             </li>
-          ))}
+            );
+          })}
         </ul>
       )}
     </div>

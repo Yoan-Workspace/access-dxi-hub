@@ -89,6 +89,7 @@ function TicketRow({
   const [comment, setComment] = useState(ticket.comment);
   const [saving, setSaving] = useState(false);
   const [checklist, setChecklist] = useState<ChecklistItem[]>(ticket.checklist ?? []);
+  const [tasksOpen, setTasksOpen] = useState(false);
 
   useEffect(() => {
     setChecklist(ticket.checklist ?? []);
@@ -129,7 +130,16 @@ function TicketRow({
     <li className="rounded-xl border bg-card p-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex min-w-0 flex-1 items-start gap-3">
-          <ProgressRing items={checklist} />
+          <button
+            type="button"
+            onClick={() => setTasksOpen((v) => !v)}
+            className="rounded-full p-0.5 transition hover:bg-muted/70 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+            title={tasksOpen ? "Réduire les tâches" : "Afficher les tâches"}
+            aria-expanded={tasksOpen}
+            aria-label={tasksOpen ? "Réduire les tâches" : "Afficher les tâches"}
+          >
+            <ProgressRing items={checklist} />
+          </button>
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
               <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
@@ -193,11 +203,13 @@ function TicketRow({
         </div>
       </div>
 
-      <div className="mt-3 border-t pt-3">
+      <div className="mt-2">
         <ItemChecklist
           items={checklist}
           onChange={(next) => void persistChecklist(next)}
           readOnly={!editable}
+          open={tasksOpen}
+          onOpenChange={setTasksOpen}
         />
       </div>
 
