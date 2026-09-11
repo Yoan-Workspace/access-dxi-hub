@@ -2385,6 +2385,7 @@ setupDataWatch();
 
 app.listen(PORT, () => {
   console.log(`Serveur lancé sur http://localhost:${PORT}`);
+  console.log("Base JSON : verrou + fichier temporaire + fusion");
   console.log(`Dossier server.js : ${__dirname}`);
   if (loadedEnvFiles.length > 0) {
     console.log(`Fichiers env lus : ${loadedEnvFiles.join(", ")}`);
