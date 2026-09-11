@@ -40,6 +40,7 @@ import {
   fetchUsers,
   getApiBase,
   fetchAllLiveStatus,
+  refreshAllLiveStatus,
   resetUserPassword,
   updateMachine,
   updateMachineItemChecklist,
@@ -65,6 +66,7 @@ import { applyTicketsToMachine, applyTicketsToMachines, syncChecklistsFromTicket
 import { effectiveStatus, hasOpenProblems } from "@/lib/machineEtat";
 import { toast } from "sonner";
 import { DxiWaveNote } from "@/components/DxiWaveNote";
+import { LivePollControl } from "@/components/LivePollControl";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -164,11 +166,29 @@ function HomePage() {
     refetchInterval: user ? 10_000 : false,
   });
 
-  const { data: liveStatuses = {} } = useQuery({
+  const { data: liveStatus } = useQuery({
     queryKey: ["live-status"],
     queryFn: fetchAllLiveStatus,
     enabled: Boolean(user) && API_CONFIGURED,
-    refetchInterval: 5 * 60 * 1000,
+    refetchInterval: (query) => {
+      if (query.state.data?.polling) return 2000;
+      const next = query.state.data?.nextPollAt
+        ? Date.parse(query.state.data.nextPollAt)
+        : NaN;
+      if (Number.isFinite(next) && next - Date.now() <= 3000) return 2000;
+      return 15_000;
+    },
+  });
+  const liveStatuses = liveStatus?.statuses ?? {};
+
+  const refreshLive = useMutation({
+    mutationFn: refreshAllLiveStatus,
+    onSuccess: (snapshot) => {
+      qc.setQueryData(["live-status"], snapshot);
+    },
+    onError: (err) => {
+      toast.error((err as Error).message || "Impossible de rafraîchir le statut live");
+    },
   });
 
   const [filters, setFilters] = useState<MachineFiltersState>(defaultFilters);
@@ -605,14 +625,25 @@ function HomePage() {
             </div>
             <div>
               <h1 className="text-base font-semibold tracking-tight">Status Machines</h1>
-              <p className="text-xs text-muted-foreground">
-                DXI 9000 (Falcon / MP) & Access 2
+              <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted-foreground">
+                <span>DXI 9000 (Falcon / MP) & Access 2</span>
                 {user && (
-                  <span className="ml-2 text-foreground/70">
+                  <span className="text-foreground/70">
                     · {user.displayName} ({roleLabel(user.role)})
                   </span>
                 )}
-              </p>
+                {user && API_CONFIGURED && (
+                  <>
+                    <span aria-hidden="true">·</span>
+                    <LivePollControl
+                      nextPollAt={liveStatus?.nextPollAt ?? null}
+                      polling={Boolean(liveStatus?.polling)}
+                      refreshing={refreshLive.isPending}
+                      onRefresh={() => refreshLive.mutate()}
+                    />
+                  </>
+                )}
+              </div>
             </div>
           </div>
 

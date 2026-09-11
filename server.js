@@ -1280,6 +1280,39 @@ const LAB_MANAGER_HOST = "http://cciaappserver01";
 const LIVE_STATUS_CACHE = new Map();
 const LIVE_POLL_INTERVAL_MS = 5 * 60 * 1000;
 
+let livePollInProgress = false;
+let livePollTimer = null;
+let nextLivePollAt = null;
+let lastLivePollStartedAt = null;
+let lastLivePollFinishedAt = null;
+
+function liveStatusPayload() {
+  const statuses = {};
+  for (const [machineId, entry] of LIVE_STATUS_CACHE.entries()) {
+    statuses[machineId] = entry;
+  }
+  return {
+    statuses,
+    polling: livePollInProgress,
+    pollIntervalMs: LIVE_POLL_INTERVAL_MS,
+    nextPollAt: nextLivePollAt ? new Date(nextLivePollAt).toISOString() : null,
+    lastPollStartedAt: lastLivePollStartedAt
+      ? new Date(lastLivePollStartedAt).toISOString()
+      : null,
+    lastPollFinishedAt: lastLivePollFinishedAt
+      ? new Date(lastLivePollFinishedAt).toISOString()
+      : null,
+  };
+}
+
+function scheduleNextLivePoll(delayMs = LIVE_POLL_INTERVAL_MS) {
+  if (livePollTimer) clearTimeout(livePollTimer);
+  nextLivePollAt = Date.now() + delayMs;
+  livePollTimer = setTimeout(() => {
+    void runLiveStatusPoll();
+  }, delayMs);
+}
+
 function serialNumberForMachine(machine) {
   if (machine.serialNumber) return String(machine.serialNumber);
   const match = machine.name.match(/^mp\s*(\d+)/i);
@@ -1576,20 +1609,34 @@ async function refreshLiveStatus(machine) {
   }
 }
 
-function startLiveStatusPolling() {
-  async function poll() {
-    try {
-      const data = ensureDataShape(readData());
-      const mpMachines = data.machines.filter((m) => isMpMachine(m));
-      for (const machine of mpMachines) {
-        await refreshLiveStatus(machine);
-      }
-    } catch (err) {
-      console.warn("Live status polling error:", err.message);
+async function runLiveStatusPoll() {
+  if (livePollInProgress) return { started: false };
+  livePollInProgress = true;
+  lastLivePollStartedAt = Date.now();
+  try {
+    const data = ensureDataShape(readData());
+    const mpMachines = data.machines.filter((m) => isMpMachine(m));
+    for (const machine of mpMachines) {
+      await refreshLiveStatus(machine);
     }
+  } catch (err) {
+    console.warn("Live status polling error:", err.message);
+  } finally {
+    livePollInProgress = false;
+    lastLivePollFinishedAt = Date.now();
+    scheduleNextLivePoll(LIVE_POLL_INTERVAL_MS);
   }
-  poll();
-  setInterval(poll, LIVE_POLL_INTERVAL_MS);
+  return { started: true };
+}
+
+function requestLiveStatusRefresh() {
+  const started = !livePollInProgress;
+  if (started) void runLiveStatusPoll();
+  return { started, ...liveStatusPayload() };
+}
+
+function startLiveStatusPolling() {
+  void runLiveStatusPoll();
 }
 
 function detectChanges(oldData, newData) {
@@ -2201,11 +2248,11 @@ app.get("/api/machines/:id/live-status", authMiddleware, async (req, res) => {
 });
 
 app.get("/api/machines/live-status", authMiddleware, (_req, res) => {
-  const result = {};
-  for (const [machineId, entry] of LIVE_STATUS_CACHE.entries()) {
-    result[machineId] = entry;
-  }
-  res.json(result);
+  res.json(liveStatusPayload());
+});
+
+app.post("/api/machines/live-status/refresh", authMiddleware, (_req, res) => {
+  res.json(requestLiveStatusRefresh());
 });
 
 app.get("/api/machines", authMiddleware, (req, res) => {

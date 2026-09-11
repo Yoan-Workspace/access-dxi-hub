@@ -250,13 +250,61 @@ export async function resetUserPassword(id: number, password: string): Promise<v
   });
 }
 
+export const LIVE_POLL_INTERVAL_MS = 5 * 60 * 1000;
+
 export interface LiveStatus {
   color: "red" | "green" | "blue" | "unknown";
   checkedAt: string | null;
   error: string | null;
 }
 
-export async function fetchAllLiveStatus(): Promise<Record<number, LiveStatus>> {
-  if (!API_CONFIGURED) return {};
-  return (await apiFetch("/api/machines/live-status")) as Record<number, LiveStatus>;
+export interface LiveStatusSnapshot {
+  statuses: Record<number, LiveStatus>;
+  polling: boolean;
+  pollIntervalMs: number;
+  nextPollAt: string | null;
+  lastPollStartedAt: string | null;
+  lastPollFinishedAt: string | null;
+}
+
+function parseLiveStatusSnapshot(data: unknown): LiveStatusSnapshot {
+  if (data && typeof data === "object" && "statuses" in data) {
+    const wrap = data as Partial<LiveStatusSnapshot>;
+    return {
+      statuses: wrap.statuses ?? {},
+      polling: Boolean(wrap.polling),
+      pollIntervalMs: wrap.pollIntervalMs ?? LIVE_POLL_INTERVAL_MS,
+      nextPollAt: wrap.nextPollAt ?? null,
+      lastPollStartedAt: wrap.lastPollStartedAt ?? null,
+      lastPollFinishedAt: wrap.lastPollFinishedAt ?? null,
+    };
+  }
+  return {
+    statuses: (data as Record<number, LiveStatus>) ?? {},
+    polling: false,
+    pollIntervalMs: LIVE_POLL_INTERVAL_MS,
+    nextPollAt: null,
+    lastPollStartedAt: null,
+    lastPollFinishedAt: null,
+  };
+}
+
+const EMPTY_LIVE_STATUS: LiveStatusSnapshot = {
+  statuses: {},
+  polling: false,
+  pollIntervalMs: LIVE_POLL_INTERVAL_MS,
+  nextPollAt: null,
+  lastPollStartedAt: null,
+  lastPollFinishedAt: null,
+};
+
+export async function fetchAllLiveStatus(): Promise<LiveStatusSnapshot> {
+  if (!API_CONFIGURED) return EMPTY_LIVE_STATUS;
+  return parseLiveStatusSnapshot(await apiFetch("/api/machines/live-status"));
+}
+
+export async function refreshAllLiveStatus(): Promise<LiveStatusSnapshot> {
+  return parseLiveStatusSnapshot(
+    await apiFetch("/api/machines/live-status/refresh", { method: "POST" }),
+  );
 }
