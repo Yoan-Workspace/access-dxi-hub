@@ -391,6 +391,12 @@ export interface PresenceUser {
   lastSeen: number;
 }
 
+export async function fetchPresence(): Promise<PresenceUser[]> {
+  if (!API_CONFIGURED) return [];
+  const data = (await apiFetch("/api/presence")) as { users?: PresenceUser[] };
+  return Array.isArray(data.users) ? data.users : [];
+}
+
 const PRESENCE_SESSION_KEY = "dxi-presence-session";
 
 export function getPresenceSessionId() {
@@ -409,12 +415,11 @@ export function getPresenceSessionId() {
   }
 }
 
-export async function fetchPresence(): Promise<PresenceUser[]> {
-  if (!API_CONFIGURED) return [];
-  const sessionId = encodeURIComponent(getPresenceSessionId());
-  const data = (await apiFetch(`/api/presence?sessionId=${sessionId}`)) as {
-    users?: PresenceUser[];
-  };
+export async function presenceHello(): Promise<PresenceUser[]> {
+  const data = (await apiFetch("/api/presence/hello", {
+    method: "POST",
+    body: JSON.stringify({ sessionId: getPresenceSessionId() }),
+  })) as { users?: PresenceUser[] };
   return Array.isArray(data.users) ? data.users : [];
 }
 

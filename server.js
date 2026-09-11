@@ -2489,10 +2489,17 @@ app.get("/api/events", (req, res) => {
   });
 });
 
-app.get("/api/presence", authMiddleware, (req, res) => {
-  const sessionId = String(req.query.sessionId || "").trim();
-  if (sessionId) upsertPresenceSession(req.user, sessionId);
+app.get("/api/presence", authMiddleware, (_req, res) => {
   res.json({ users: listOnlineUsers() });
+});
+
+app.post("/api/presence/hello", authMiddleware, (req, res) => {
+  const sessionId = String(req.body?.sessionId || req.query.sessionId || "").trim();
+  if (!sessionId) {
+    return res.status(400).json({ error: "sessionId requis" });
+  }
+  upsertPresenceSession(req.user, sessionId);
+  res.json({ ok: true, users: listOnlineUsers() });
 });
 
 app.post("/api/presence/bye", (req, res) => {
