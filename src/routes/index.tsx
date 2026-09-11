@@ -72,7 +72,7 @@ import { toast } from "sonner";
 import { DxiWaveNote } from "@/components/DxiWaveNote";
 import { LivePollControl } from "@/components/LivePollControl";
 import { PresenceButton, PresenceDialog } from "@/components/PresenceDialog";
-import { playWizzEffect, unlockWizzAudio } from "@/lib/wizz";
+import { playWizzEffect, requestWizzNotifications, unlockWizzAudio } from "@/lib/wizz";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -291,8 +291,9 @@ function HomePage() {
         const payload = JSON.parse((event as MessageEvent).data) as {
           fromName?: string;
         };
-        playWizzEffect();
-        toast.message(`${payload.fromName || "Quelqu'un"} t'envoie un wizz !`);
+        const fromName = payload.fromName || "Quelqu'un";
+        playWizzEffect(fromName);
+        toast.message(`${fromName} t'envoie un wizz !`);
       } catch {
         playWizzEffect();
       }
@@ -796,6 +797,7 @@ function HomePage() {
                 count={onlineUsers.length}
                 onClick={() => {
                   unlockWizzAudio();
+                  void requestWizzNotifications();
                   setPresenceOpen(true);
                 }}
               />

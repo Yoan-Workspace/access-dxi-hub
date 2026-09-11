@@ -1,7 +1,9 @@
 let audioCtx: AudioContext | null = null;
 
 function getAudioContext() {
-  const Ctor = window.AudioContext || (window as Window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+  const Ctor =
+    window.AudioContext ||
+    (window as Window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
   if (!Ctor) return null;
   if (!audioCtx) audioCtx = new Ctor();
   return audioCtx;
@@ -10,6 +12,43 @@ function getAudioContext() {
 export function unlockWizzAudio() {
   const ctx = getAudioContext();
   if (ctx?.state === "suspended") void ctx.resume();
+}
+
+export async function requestWizzNotifications() {
+  if (typeof Notification === "undefined") return "denied" as NotificationPermission;
+  if (Notification.permission === "granted") return "granted";
+  if (Notification.permission === "denied") return "denied";
+  try {
+    return await Notification.requestPermission();
+  } catch {
+    return Notification.permission;
+  }
+}
+
+function tabIsInBackground() {
+  return document.hidden || !document.hasFocus();
+}
+
+export function showWizzNotification(fromName: string) {
+  if (typeof Notification === "undefined") return;
+  if (Notification.permission !== "granted") return;
+  if (!tabIsInBackground()) return;
+
+  const body = `${fromName} t'envoie un wizz !`;
+  try {
+    const notification = new Notification("Wizz", {
+      body,
+      tag: "dxi-wizz",
+      silent: false,
+    });
+    notification.onclick = () => {
+      window.focus();
+      notification.close();
+    };
+    window.setTimeout(() => notification.close(), 8_000);
+  } catch {
+    /* ignore */
+  }
 }
 
 function beep(ctx: AudioContext, start: number, frequency: number, duration: number) {
@@ -37,9 +76,10 @@ export function playWizzSound() {
   beep(ctx, now + 0.28, 90, 0.28);
 }
 
-export function playWizzEffect() {
+export function playWizzEffect(fromName = "Quelqu'un") {
   unlockWizzAudio();
   playWizzSound();
+  showWizzNotification(fromName);
   const root = document.documentElement;
   root.classList.remove("dxi-wizzing");
   void root.offsetWidth;

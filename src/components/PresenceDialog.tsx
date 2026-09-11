@@ -1,6 +1,8 @@
-import { Loader2, Zap } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Bell, Loader2, Zap } from "lucide-react";
 import { roleLabel } from "@/lib/permissions";
 import type { PresenceUser } from "@/lib/api";
+import { requestWizzNotifications } from "@/lib/wizz";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -27,6 +29,14 @@ export function PresenceDialog({
 }) {
   const others = users.filter((user) => user.id !== currentUserId);
   const me = users.find((user) => user.id === currentUserId);
+  const [notifPermission, setNotifPermission] = useState<NotificationPermission>(() =>
+    typeof Notification === "undefined" ? "denied" : Notification.permission,
+  );
+
+  useEffect(() => {
+    if (!open) return;
+    void requestWizzNotifications().then(setNotifPermission);
+  }, [open]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -37,6 +47,19 @@ export function PresenceDialog({
             Clique sur une personne pour lui envoyer un wizz, comme sur MSN.
           </p>
         </DialogHeader>
+
+        {typeof Notification !== "undefined" && notifPermission !== "granted" && (
+          <button
+            type="button"
+            onClick={() => void requestWizzNotifications().then(setNotifPermission)}
+            className="flex w-full items-center gap-2 rounded-lg border border-dashed px-3 py-2 text-left text-xs text-muted-foreground transition hover:border-primary/40 hover:text-foreground"
+          >
+            <Bell className="h-3.5 w-3.5 shrink-0" />
+            {notifPermission === "denied"
+              ? "Notifications bloquées dans le navigateur — autorise-les pour voir un wizz hors de la page."
+              : "Autoriser les notifications pour recevoir un wizz même si tu n’es pas sur la page."}
+          </button>
+        )}
 
         <div className="max-h-[60vh] space-y-1 overflow-y-auto">
           {me && (
