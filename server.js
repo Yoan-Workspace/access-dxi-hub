@@ -624,20 +624,234 @@ function scheduleMonthlyMaintCheck() {
   }, 60 * 60 * 1000);
 }
 
+function sseClientRes(client) {
+  return client?.res ?? client;
+}
+
+function writeSse(client, event, data) {
+  try {
+    const res = sseClientRes(client);
+    const body = JSON.stringify(data);
+    if (event) res.write(`event: ${event}\ndata: ${body}\n\n`);
+    else res.write(`data: ${body}\n\n`);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function notifyClients() {
   if (notifyTimer) return;
   notifyTimer = setTimeout(() => {
     notifyTimer = null;
     lastNotifyAt = Date.now();
-    const payload = `data: ${JSON.stringify({ type: "data-updated" })}\n\n`;
+    const payload = { type: "data-updated" };
     for (let i = clients.length - 1; i >= 0; i--) {
-      try {
-        clients[i].write(payload);
-      } catch {
+      if (!writeSse(clients[i], null, payload)) {
         clients.splice(i, 1);
       }
     }
   }, 250);
+}
+
+const DATA_DIR = path.dirname(path.resolve(DATA_PATH));
+const PRESENCE_DIR = path.join(DATA_DIR, "presence");
+const WIZZ_DIR = path.join(DATA_DIR, "wizz");
+const PRESENCE_TTL_MS = 40_000;
+const PRESENCE_GRACE_MS = 8_000;
+const PRESENCE_HEARTBEAT_MS = 10_000;
+const WIZZ_COOLDOWN_MS = 8_000;
+const WIZZ_POLL_MS = 800;
+const PRESENCE_FILE = path.join(
+  PRESENCE_DIR,
+  `${String(os.hostname()).replace(/[^a-zA-Z0-9._-]+/g, "_")}-${process.pid}.json`,
+);
+
+const localOnline = new Map();
+const lastWizzAt = new Map();
+
+function writeLocalPresenceFile() {
+  fs.mkdirSync(PRESENCE_DIR, { recursive: true });
+  if (localOnline.size === 0) {
+    try {
+      fs.unlinkSync(PRESENCE_FILE);
+    } catch {
+      /* ignore */
+    }
+    return;
+  }
+  const users = [];
+  for (const entry of localOnline.values()) {
+    users.push({
+      id: entry.user.id,
+      username: entry.user.username,
+      displayName: entry.user.displayName,
+      role: entry.user.role,
+      lastSeen: Date.now(),
+    });
+  }
+  atomicWriteJson(PRESENCE_FILE, { at: Date.now(), users });
+}
+
+function listOnlineUsers() {
+  const now = Date.now();
+  const byId = new Map();
+  let names = [];
+  try {
+    names = fs.readdirSync(PRESENCE_DIR);
+  } catch {
+    return [];
+  }
+
+  for (const name of names) {
+    if (!name.endsWith(".json")) continue;
+    const filePath = path.join(PRESENCE_DIR, name);
+    try {
+      const raw = JSON.parse(fs.readFileSync(filePath, "utf8"));
+      const at = Number(raw.at || 0);
+      if (!Number.isFinite(at) || now - at > PRESENCE_TTL_MS) {
+        try {
+          fs.unlinkSync(filePath);
+        } catch {
+          /* ignore */
+        }
+        continue;
+      }
+      for (const user of raw.users || []) {
+        if (user?.id == null) continue;
+        const lastSeen = Number(user.lastSeen || at);
+        if (!Number.isFinite(lastSeen) || now - lastSeen > PRESENCE_TTL_MS) continue;
+        const id = Number(user.id);
+        const prev = byId.get(id);
+        if (!prev || lastSeen > prev.lastSeen) {
+          byId.set(id, {
+            id,
+            username: user.username,
+            displayName: user.displayName,
+            role: user.role,
+            lastSeen,
+          });
+        }
+      }
+    } catch {
+      /* fichier en cours d'écriture */
+    }
+  }
+
+  return [...byId.values()].sort((a, b) =>
+    String(a.displayName || a.username).localeCompare(
+      String(b.displayName || b.username),
+      "fr",
+    ),
+  );
+}
+
+function markUserOnline(user) {
+  if (!user?.id) return;
+  const current = localOnline.get(user.id) ?? {
+    user,
+    connections: 0,
+    leaveTimer: null,
+  };
+  current.user = user;
+  current.connections += 1;
+  if (current.leaveTimer) {
+    clearTimeout(current.leaveTimer);
+    current.leaveTimer = null;
+  }
+  localOnline.set(user.id, current);
+  writeLocalPresenceFile();
+}
+
+function markUserOffline(userId) {
+  const current = localOnline.get(userId);
+  if (!current) return;
+  current.connections = Math.max(0, current.connections - 1);
+  if (current.connections > 0) {
+    localOnline.set(userId, current);
+    writeLocalPresenceFile();
+    return;
+  }
+  if (current.leaveTimer) clearTimeout(current.leaveTimer);
+  current.leaveTimer = setTimeout(() => {
+    const latest = localOnline.get(userId);
+    if (!latest || latest.connections > 0) return;
+    localOnline.delete(userId);
+    writeLocalPresenceFile();
+  }, PRESENCE_GRACE_MS);
+  localOnline.set(userId, current);
+}
+
+function deliverWizzToLocal(event) {
+  let delivered = false;
+  for (let i = clients.length - 1; i >= 0; i--) {
+    const client = clients[i];
+    if (Number(client.userId) !== Number(event.toId)) continue;
+    if (writeSse(client, "wizz", {
+      fromId: event.fromId,
+      fromName: event.fromName,
+      at: event.at,
+    })) {
+      delivered = true;
+    } else {
+      clients.splice(i, 1);
+    }
+  }
+  return delivered;
+}
+
+function pollWizzFiles() {
+  let names = [];
+  try {
+    names = fs.readdirSync(WIZZ_DIR);
+  } catch {
+    return;
+  }
+  const now = Date.now();
+  for (const name of names) {
+    if (!name.endsWith(".json")) continue;
+    const filePath = path.join(WIZZ_DIR, name);
+    try {
+      const event = JSON.parse(fs.readFileSync(filePath, "utf8"));
+      if (now - Number(event.at || 0) > 60_000) {
+        fs.unlinkSync(filePath);
+        continue;
+      }
+      if (deliverWizzToLocal(event)) {
+        try {
+          fs.unlinkSync(filePath);
+        } catch {
+          /* ignore */
+        }
+      }
+    } catch {
+      /* ignore */
+    }
+  }
+}
+
+function cleanupPresenceFile() {
+  try {
+    fs.unlinkSync(PRESENCE_FILE);
+  } catch {
+    /* ignore */
+  }
+}
+
+function startPresenceServices() {
+  fs.mkdirSync(PRESENCE_DIR, { recursive: true });
+  fs.mkdirSync(WIZZ_DIR, { recursive: true });
+  setInterval(() => {
+    if (localOnline.size > 0) writeLocalPresenceFile();
+  }, PRESENCE_HEARTBEAT_MS);
+  setInterval(pollWizzFiles, WIZZ_POLL_MS);
+  process.on("exit", cleanupPresenceFile);
+  for (const signal of ["SIGINT", "SIGTERM", "SIGBREAK"]) {
+    process.on(signal, () => {
+      cleanupPresenceFile();
+      process.exit(0);
+    });
+  }
 }
 
 function ticketCategoryLabel(category) {
@@ -2176,7 +2390,9 @@ app.get("/api/events", (req, res) => {
   res.flushHeaders?.();
   res.write(": connected\n\n");
 
-  if (!clients.includes(res)) clients.push(res);
+  const client = { res, userId: session.user?.id, token };
+  clients.push(client);
+  markUserOnline(session.user);
 
   const keepAlive = setInterval(() => {
     try {
@@ -2188,9 +2404,50 @@ app.get("/api/events", (req, res) => {
 
   req.on("close", () => {
     clearInterval(keepAlive);
-    const index = clients.indexOf(res);
+    const index = clients.indexOf(client);
     if (index !== -1) clients.splice(index, 1);
+    markUserOffline(session.user?.id);
   });
+});
+
+app.get("/api/presence", authMiddleware, (_req, res) => {
+  res.json({ users: listOnlineUsers() });
+});
+
+app.post("/api/wizz", authMiddleware, (req, res) => {
+  const toId = Number(req.body?.userId);
+  if (!Number.isFinite(toId) || toId <= 0) {
+    return res.status(400).json({ error: "Destinataire invalide" });
+  }
+  if (Number(req.user.id) === toId) {
+    return res.status(400).json({ error: "Tu ne peux pas t'envoyer un wizz" });
+  }
+
+  const last = lastWizzAt.get(req.user.id) || 0;
+  if (Date.now() - last < WIZZ_COOLDOWN_MS) {
+    return res.status(429).json({ error: "Doucement… attends une seconde avant un autre wizz" });
+  }
+
+  const online = listOnlineUsers();
+  const target = online.find((user) => user.id === toId);
+  if (!target) {
+    return res.status(404).json({ error: "Cette personne n'est plus connectée" });
+  }
+
+  lastWizzAt.set(req.user.id, Date.now());
+  const event = {
+    id: crypto.randomBytes(8).toString("hex"),
+    fromId: req.user.id,
+    fromName: req.user.displayName || req.user.username,
+    toId,
+    at: Date.now(),
+  };
+
+  fs.mkdirSync(WIZZ_DIR, { recursive: true });
+  atomicWriteJson(path.join(WIZZ_DIR, `${event.at}-${event.id}.json`), event);
+  deliverWizzToLocal(event);
+
+  res.json({ ok: true });
 });
 
 app.put(
@@ -2487,5 +2744,7 @@ app.listen(PORT, () => {
 
   scheduleMonthlyMaintCheck();
   startLiveStatusPolling();
+  startPresenceServices();
   console.log(`Détection couleur live : polling toutes les ${LIVE_POLL_INTERVAL_MS / 1000}s`);
+  console.log("Présence : liste des connectés + wizz");
 });

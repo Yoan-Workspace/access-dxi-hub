@@ -40,7 +40,9 @@ import {
   fetchUsers,
   getApiBase,
   fetchAllLiveStatus,
+  fetchPresence,
   refreshAllLiveStatus,
+  sendWizz,
   resetUserPassword,
   updateMachine,
   updateMachineItemChecklist,
@@ -67,6 +69,8 @@ import { effectiveStatus, hasOpenProblems } from "@/lib/machineEtat";
 import { toast } from "sonner";
 import { DxiWaveNote } from "@/components/DxiWaveNote";
 import { LivePollControl } from "@/components/LivePollControl";
+import { PresenceButton, PresenceDialog } from "@/components/PresenceDialog";
+import { playWizzEffect, unlockWizzAudio } from "@/lib/wizz";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -189,10 +193,35 @@ function HomePage() {
     },
   });
 
+  const { data: onlineUsers = [] } = useQuery({
+    queryKey: ["presence"],
+    queryFn: fetchPresence,
+    enabled: Boolean(user) && API_CONFIGURED,
+    refetchInterval: 5_000,
+  });
+
+  const wizzMutation = useMutation({
+    mutationFn: sendWizz,
+    onMutate: (userId) => {
+      setWizzTargetId(userId);
+      unlockWizzAudio();
+    },
+    onSuccess: (_data, userId) => {
+      const target = onlineUsers.find((person) => person.id === userId);
+      toast.success(`Wizz envoyé à ${target?.displayName ?? "ton collègue"}`);
+    },
+    onError: (err) => {
+      toast.error((err as Error).message || "Impossible d'envoyer le wizz");
+    },
+    onSettled: () => setWizzTargetId(null),
+  });
+
   const [filters, setFilters] = useState<MachineFiltersState>(defaultFilters);
   const [query, setQuery] = useState("");
   const [editTab, setEditTab] = useState<EditMachineTab>("general");
   const [ticketMachineId, setTicketMachineId] = useState<number | undefined>();
+  const [presenceOpen, setPresenceOpen] = useState(false);
+  const [wizzTargetId, setWizzTargetId] = useState<number | null>(null);
   const [managingUsers, setManagingUsers] = useState(false);
   const [changePasswordOpen, setChangePasswordOpen] = useState(false);
   const [users, setUsers] = useState<User[]>([]);
@@ -255,8 +284,26 @@ function HomePage() {
       void qc.refetchQueries({ queryKey: ["tickets"] });
     };
 
+    source.addEventListener("wizz", (event) => {
+      try {
+        const payload = JSON.parse((event as MessageEvent).data) as {
+          fromName?: string;
+        };
+        playWizzEffect();
+        toast.message(`${payload.fromName || "Quelqu'un"} t'envoie un wizz !`);
+      } catch {
+        playWizzEffect();
+      }
+    });
+
     return () => source.close();
   }, [qc, user, token]);
+
+  useEffect(() => {
+    const unlock = () => unlockWizzAudio();
+    window.addEventListener("pointerdown", unlock, { once: true });
+    return () => window.removeEventListener("pointerdown", unlock);
+  }, []);
 
   useEffect(() => {
     if (!user) return;
@@ -714,6 +761,15 @@ function HomePage() {
               <span className="hidden sm:inline">Nouvelle machine</span>
             </Button>
             )}
+            {API_CONFIGURED && user && (
+              <PresenceButton
+                count={onlineUsers.length}
+                onClick={() => {
+                  unlockWizzAudio();
+                  setPresenceOpen(true);
+                }}
+              />
+            )}
             {canManageUsers(user?.role) && (
               <Button variant="outline" size="icon" onClick={() => setManagingUsers(true)} title="Utilisateurs">
                 <Users className="h-4 w-4" />
@@ -881,6 +937,17 @@ function HomePage() {
           await createTicketMutation.mutateAsync(input);
         }}
       />
+
+      {user && API_CONFIGURED && (
+        <PresenceDialog
+          open={presenceOpen}
+          onOpenChange={setPresenceOpen}
+          users={onlineUsers}
+          currentUserId={user.id}
+          sendingId={wizzTargetId}
+          onWizz={(person) => wizzMutation.mutate(person.id)}
+        />
+      )}
 
       {user && canManageUsers(user.role) && (
         <AdminUsersDialog

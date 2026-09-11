@@ -382,3 +382,24 @@ export async function refreshAllLiveStatus(
     nextPollAt: new Date(Date.now() + snapshot.pollIntervalMs).toISOString(),
   };
 }
+
+export interface PresenceUser {
+  id: number;
+  username: string;
+  displayName: string;
+  role: User["role"];
+  lastSeen: number;
+}
+
+export async function fetchPresence(): Promise<PresenceUser[]> {
+  if (!API_CONFIGURED) return [];
+  const data = (await apiFetch("/api/presence")) as { users?: PresenceUser[] };
+  return Array.isArray(data.users) ? data.users : [];
+}
+
+export async function sendWizz(userId: number): Promise<void> {
+  await apiFetch("/api/wizz", {
+    method: "POST",
+    body: JSON.stringify({ userId }),
+  });
+}

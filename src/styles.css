@@ -128,3 +128,22 @@
     font-feature-settings: "cv11", "ss01";
   }
 }
+
+@keyframes dxi-wizz {
+  0%, 100% { transform: translate3d(0, 0, 0) rotate(0deg); }
+  12% { transform: translate3d(-16px, 5px, 0) rotate(-1.4deg); }
+  24% { transform: translate3d(16px, -6px, 0) rotate(1.4deg); }
+  36% { transform: translate3d(-12px, -4px, 0) rotate(-1deg); }
+  48% { transform: translate3d(12px, 4px, 0) rotate(1deg); }
+  60% { transform: translate3d(-8px, 3px, 0) rotate(-0.6deg); }
+  72% { transform: translate3d(8px, -3px, 0) rotate(0.6deg); }
+  86% { transform: translate3d(-4px, 1px, 0) rotate(-0.3deg); }
+}
+
+html.dxi-wizzing {
+  overflow-x: hidden;
+}
+
+html.dxi-wizzing body {
+  animation: dxi-wizz 0.7s cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
+}
