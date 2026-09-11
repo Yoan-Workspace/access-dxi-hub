@@ -397,6 +397,44 @@ export async function fetchPresence(): Promise<PresenceUser[]> {
   return Array.isArray(data.users) ? data.users : [];
 }
 
+const PRESENCE_SESSION_KEY = "dxi-presence-session";
+
+export function getPresenceSessionId() {
+  try {
+    let id = sessionStorage.getItem(PRESENCE_SESSION_KEY);
+    if (!id) {
+      id =
+        typeof crypto !== "undefined" && crypto.randomUUID
+          ? crypto.randomUUID()
+          : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+      sessionStorage.setItem(PRESENCE_SESSION_KEY, id);
+    }
+    return id;
+  } catch {
+    return `tab-${Date.now()}`;
+  }
+}
+
+export async function presenceHello(): Promise<PresenceUser[]> {
+  const data = (await apiFetch("/api/presence/hello", {
+    method: "POST",
+    body: JSON.stringify({ sessionId: getPresenceSessionId() }),
+  })) as { users?: PresenceUser[] };
+  return Array.isArray(data.users) ? data.users : [];
+}
+
+export function presenceBye() {
+  if (!API_CONFIGURED) return;
+  const token = getStoredToken();
+  if (!token) return;
+  const url = `${getApiBase()}/api/presence/bye?token=${encodeURIComponent(token)}&sessionId=${encodeURIComponent(getPresenceSessionId())}`;
+  try {
+    navigator.sendBeacon(url);
+  } catch {
+    void fetch(url, { method: "POST", keepalive: true }).catch(() => undefined);
+  }
+}
+
 export async function sendWizz(userId: number): Promise<void> {
   await apiFetch("/api/wizz", {
     method: "POST",

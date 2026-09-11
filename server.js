@@ -655,90 +655,204 @@ function notifyClients() {
 }
 
 const DATA_DIR = path.dirname(path.resolve(DATA_PATH));
-const PRESENCE_DIR = path.join(DATA_DIR, "presence");
-const WIZZ_DIR = path.join(DATA_DIR, "wizz");
-const PRESENCE_TTL_MS = 40_000;
-const PRESENCE_GRACE_MS = 8_000;
-const PRESENCE_HEARTBEAT_MS = 10_000;
+const PRESENCE_PATH = path.join(__dirname, "data", "presence.json");
+const PRESENCE_PATH_FALLBACK = path.join(DATA_DIR, "presence.json");
+const PRESENCE_LOCK_DIR = `${PRESENCE_PATH}.lock`;
+const WIZZ_DIR = path.join(__dirname, "data", "wizz");
+const PRESENCE_TTL_MS = 25_000;
 const WIZZ_COOLDOWN_MS = 8_000;
 const WIZZ_POLL_MS = 800;
-const PRESENCE_FILE = path.join(
-  PRESENCE_DIR,
-  `${String(os.hostname()).replace(/[^a-zA-Z0-9._-]+/g, "_")}-${process.pid}.json`,
-);
 
-const localOnline = new Map();
 const lastWizzAt = new Map();
 
-function writeLocalPresenceFile() {
-  fs.mkdirSync(PRESENCE_DIR, { recursive: true });
-  if (localOnline.size === 0) {
-    try {
-      fs.unlinkSync(PRESENCE_FILE);
-    } catch {
-      /* ignore */
-    }
-    return;
+function presenceLockIsStale() {
+  try {
+    return Date.now() - fs.statSync(PRESENCE_LOCK_DIR).mtimeMs > 8_000;
+  } catch {
+    return true;
   }
-  const users = [];
-  for (const entry of localOnline.values()) {
-    users.push({
-      id: entry.user.id,
-      username: entry.user.username,
-      displayName: entry.user.displayName,
-      role: entry.user.role,
-      lastSeen: Date.now(),
-    });
-  }
-  atomicWriteJson(PRESENCE_FILE, { at: Date.now(), users });
 }
 
-function listOnlineUsers() {
-  const now = Date.now();
-  const byId = new Map();
-  let names = [];
-  try {
-    names = fs.readdirSync(PRESENCE_DIR);
-  } catch {
-    return [];
-  }
-
-  for (const name of names) {
-    if (!name.endsWith(".json")) continue;
-    const filePath = path.join(PRESENCE_DIR, name);
+function withPresenceLock(fn) {
+  const started = Date.now();
+  while (true) {
     try {
-      const raw = JSON.parse(fs.readFileSync(filePath, "utf8"));
-      const at = Number(raw.at || 0);
-      if (!Number.isFinite(at) || now - at > PRESENCE_TTL_MS) {
+      fs.mkdirSync(path.dirname(PRESENCE_PATH), { recursive: true });
+      fs.mkdirSync(PRESENCE_LOCK_DIR);
+      break;
+    } catch (err) {
+      if (err?.code !== "EEXIST") throw err;
+      if (presenceLockIsStale()) {
         try {
-          fs.unlinkSync(filePath);
+          fs.rmSync(PRESENCE_LOCK_DIR, { recursive: true, force: true });
         } catch {
           /* ignore */
         }
         continue;
       }
-      for (const user of raw.users || []) {
-        if (user?.id == null) continue;
-        const lastSeen = Number(user.lastSeen || at);
-        if (!Number.isFinite(lastSeen) || now - lastSeen > PRESENCE_TTL_MS) continue;
-        const id = Number(user.id);
-        const prev = byId.get(id);
-        if (!prev || lastSeen > prev.lastSeen) {
-          byId.set(id, {
-            id,
-            username: user.username,
-            displayName: user.displayName,
-            role: user.role,
-            lastSeen,
-          });
-        }
+      if (Date.now() - started > 4_000) {
+        return fn();
       }
-    } catch {
-      /* fichier en cours d'écriture */
+      sleepSync(30);
     }
   }
+  try {
+    return fn();
+  } finally {
+    try {
+      fs.rmSync(PRESENCE_LOCK_DIR, { recursive: true, force: true });
+    } catch {
+      /* ignore */
+    }
+  }
+}
 
-  return [...byId.values()].sort((a, b) =>
+function emptyPresenceDoc() {
+  return { users: {} };
+}
+
+function readPresenceDocFrom(filePath) {
+  try {
+    const raw = JSON.parse(fs.readFileSync(filePath, "utf8"));
+    if (!raw || typeof raw !== "object") return emptyPresenceDoc();
+    if (!raw.users || typeof raw.users !== "object") raw.users = {};
+    return raw;
+  } catch {
+    return emptyPresenceDoc();
+  }
+}
+
+function readPresenceDoc() {
+  const primary = readPresenceDocFrom(PRESENCE_PATH);
+  if (PRESENCE_PATH_FALLBACK === PRESENCE_PATH) return primary;
+  const fallback = readPresenceDocFrom(PRESENCE_PATH_FALLBACK);
+  for (const [userId, user] of Object.entries(fallback.users || {})) {
+    if (!primary.users[userId]) {
+      primary.users[userId] = user;
+      continue;
+    }
+    primary.users[userId].sessions = {
+      ...(fallback.users[userId].sessions || {}),
+      ...(primary.users[userId].sessions || {}),
+    };
+  }
+  return primary;
+}
+
+function prunePresenceDoc(doc, now = Date.now()) {
+  const users = doc.users || {};
+  for (const [userId, user] of Object.entries(users)) {
+    const sessions = user.sessions || {};
+    for (const [sessionId, session] of Object.entries(sessions)) {
+      const lastSeen = Number(session?.lastSeen || 0);
+      if (!Number.isFinite(lastSeen) || now - lastSeen > PRESENCE_TTL_MS) {
+        delete sessions[sessionId];
+      }
+    }
+    if (Object.keys(sessions).length === 0) {
+      delete users[userId];
+    } else {
+      user.sessions = sessions;
+    }
+  }
+  doc.users = users;
+  return doc;
+}
+
+function writePresenceDoc(doc) {
+  const body = prunePresenceDoc(doc);
+  fs.mkdirSync(path.dirname(PRESENCE_PATH), { recursive: true });
+  atomicWriteJson(PRESENCE_PATH, body);
+  if (PRESENCE_PATH_FALLBACK !== PRESENCE_PATH) {
+    try {
+      fs.mkdirSync(path.dirname(PRESENCE_PATH_FALLBACK), { recursive: true });
+      atomicWriteJson(PRESENCE_PATH_FALLBACK, body);
+    } catch {
+      /* ignore */
+    }
+  }
+}
+
+function upsertPresenceSession(user, sessionId) {
+  if (!user?.id || !sessionId) return;
+  withPresenceLock(() => {
+    const doc = readPresenceDoc();
+    const userId = String(user.id);
+    const current = doc.users[userId] || {
+      id: user.id,
+      username: user.username,
+      displayName: user.displayName,
+      role: user.role,
+      sessions: {},
+    };
+    current.username = user.username;
+    current.displayName = user.displayName;
+    current.role = user.role;
+    current.sessions = current.sessions || {};
+    current.sessions[String(sessionId)] = {
+      lastSeen: Date.now(),
+      host: os.hostname(),
+      pid: process.pid,
+    };
+    doc.users[userId] = current;
+    writePresenceDoc(doc);
+  });
+}
+
+function removePresenceSession(userId, sessionId) {
+  if (userId == null || !sessionId) return;
+  withPresenceLock(() => {
+    const doc = readPresenceDoc();
+    const current = doc.users[String(userId)];
+    if (!current?.sessions) {
+      writePresenceDoc(doc);
+      return;
+    }
+    delete current.sessions[String(sessionId)];
+    if (Object.keys(current.sessions).length === 0) {
+      delete doc.users[String(userId)];
+    }
+    writePresenceDoc(doc);
+  });
+}
+
+function removePresenceSessionsForThisProcess() {
+  try {
+    withPresenceLock(() => {
+      const doc = readPresenceDoc();
+      const host = os.hostname();
+      for (const [userId, user] of Object.entries(doc.users || {})) {
+        const sessions = user.sessions || {};
+        for (const [sessionId, session] of Object.entries(sessions)) {
+          if (session?.pid === process.pid && session?.host === host) {
+            delete sessions[sessionId];
+          }
+        }
+        if (Object.keys(sessions).length === 0) delete doc.users[userId];
+      }
+      writePresenceDoc(doc);
+    });
+  } catch {
+    /* ignore */
+  }
+}
+
+function listOnlineUsers() {
+  const doc = prunePresenceDoc(readPresenceDoc());
+  const users = [];
+  for (const user of Object.values(doc.users || {})) {
+    const sessions = Object.values(user.sessions || {});
+    if (sessions.length === 0) continue;
+    const lastSeen = Math.max(...sessions.map((session) => Number(session.lastSeen || 0)));
+    users.push({
+      id: Number(user.id),
+      username: user.username,
+      displayName: user.displayName,
+      role: user.role,
+      lastSeen,
+    });
+  }
+  return users.sort((a, b) =>
     String(a.displayName || a.username).localeCompare(
       String(b.displayName || b.username),
       "fr",
@@ -746,40 +860,11 @@ function listOnlineUsers() {
   );
 }
 
-function markUserOnline(user) {
-  if (!user?.id) return;
-  const current = localOnline.get(user.id) ?? {
-    user,
-    connections: 0,
-    leaveTimer: null,
-  };
-  current.user = user;
-  current.connections += 1;
-  if (current.leaveTimer) {
-    clearTimeout(current.leaveTimer);
-    current.leaveTimer = null;
-  }
-  localOnline.set(user.id, current);
-  writeLocalPresenceFile();
-}
-
-function markUserOffline(userId) {
-  const current = localOnline.get(userId);
-  if (!current) return;
-  current.connections = Math.max(0, current.connections - 1);
-  if (current.connections > 0) {
-    localOnline.set(userId, current);
-    writeLocalPresenceFile();
-    return;
-  }
-  if (current.leaveTimer) clearTimeout(current.leaveTimer);
-  current.leaveTimer = setTimeout(() => {
-    const latest = localOnline.get(userId);
-    if (!latest || latest.connections > 0) return;
-    localOnline.delete(userId);
-    writeLocalPresenceFile();
-  }, PRESENCE_GRACE_MS);
-  localOnline.set(userId, current);
+function sessionUserFromToken(token) {
+  if (!token) return null;
+  const session = sessions.get(token);
+  if (!session || session.expiresAt < Date.now()) return null;
+  return session.user;
 }
 
 function deliverWizzToLocal(event) {
@@ -830,25 +915,21 @@ function pollWizzFiles() {
   }
 }
 
-function cleanupPresenceFile() {
-  try {
-    fs.unlinkSync(PRESENCE_FILE);
-  } catch {
-    /* ignore */
-  }
-}
-
 function startPresenceServices() {
-  fs.mkdirSync(PRESENCE_DIR, { recursive: true });
+  fs.mkdirSync(path.dirname(PRESENCE_PATH), { recursive: true });
   fs.mkdirSync(WIZZ_DIR, { recursive: true });
   setInterval(() => {
-    if (localOnline.size > 0) writeLocalPresenceFile();
-  }, PRESENCE_HEARTBEAT_MS);
+    try {
+      withPresenceLock(() => writePresenceDoc(readPresenceDoc()));
+    } catch {
+      /* ignore */
+    }
+  }, 12_000);
   setInterval(pollWizzFiles, WIZZ_POLL_MS);
-  process.on("exit", cleanupPresenceFile);
+  process.on("exit", removePresenceSessionsForThisProcess);
   for (const signal of ["SIGINT", "SIGTERM", "SIGBREAK"]) {
     process.on(signal, () => {
-      cleanupPresenceFile();
+      removePresenceSessionsForThisProcess();
       process.exit(0);
     });
   }
@@ -2392,7 +2473,6 @@ app.get("/api/events", (req, res) => {
 
   const client = { res, userId: session.user?.id, token };
   clients.push(client);
-  markUserOnline(session.user);
 
   const keepAlive = setInterval(() => {
     try {
@@ -2406,12 +2486,30 @@ app.get("/api/events", (req, res) => {
     clearInterval(keepAlive);
     const index = clients.indexOf(client);
     if (index !== -1) clients.splice(index, 1);
-    markUserOffline(session.user?.id);
   });
 });
 
 app.get("/api/presence", authMiddleware, (_req, res) => {
   res.json({ users: listOnlineUsers() });
+});
+
+app.post("/api/presence/hello", authMiddleware, (req, res) => {
+  const sessionId = String(req.body?.sessionId || req.query.sessionId || "").trim();
+  if (!sessionId) {
+    return res.status(400).json({ error: "sessionId requis" });
+  }
+  upsertPresenceSession(req.user, sessionId);
+  res.json({ ok: true, users: listOnlineUsers() });
+});
+
+app.post("/api/presence/bye", (req, res) => {
+  const token = getToken(req) || req.query.token;
+  const user = sessionUserFromToken(token);
+  const sessionId = String(req.body?.sessionId || req.query.sessionId || "").trim();
+  if (user && sessionId) {
+    removePresenceSession(user.id, sessionId);
+  }
+  res.json({ ok: true });
 });
 
 app.post("/api/wizz", authMiddleware, (req, res) => {
@@ -2746,5 +2844,5 @@ app.listen(PORT, () => {
   startLiveStatusPolling();
   startPresenceServices();
   console.log(`Détection couleur live : polling toutes les ${LIVE_POLL_INTERVAL_MS / 1000}s`);
-  console.log("Présence : liste des connectés + wizz");
+  console.log(`Présence partagée : ${PRESENCE_PATH}`);
 });

@@ -13,6 +13,7 @@ import {
   getStoredToken,
   login as apiLogin,
   logout as apiLogout,
+  presenceBye,
 } from "@/lib/api";
 import type { User } from "@/lib/types";
 
@@ -66,6 +67,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const logout = useCallback(async () => {
+    presenceBye();
     await apiLogout();
     setToken(null);
     setUser(null);

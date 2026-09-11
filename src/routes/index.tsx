@@ -41,6 +41,8 @@ import {
   getApiBase,
   fetchAllLiveStatus,
   fetchPresence,
+  presenceBye,
+  presenceHello,
   refreshAllLiveStatus,
   sendWizz,
   resetUserPassword,
@@ -297,6 +299,34 @@ function HomePage() {
     });
 
     return () => source.close();
+  }, [qc, user, token]);
+
+  useEffect(() => {
+    if (!API_CONFIGURED || !user || !token) return;
+
+    let stopped = false;
+    const hello = () => {
+      if (stopped) return;
+      void presenceHello()
+        .then((users) => {
+          qc.setQueryData(["presence"], users);
+        })
+        .catch(() => undefined);
+    };
+
+    hello();
+    const heartbeat = window.setInterval(hello, 5_000);
+    const onLeave = () => presenceBye();
+    window.addEventListener("pagehide", onLeave);
+    window.addEventListener("beforeunload", onLeave);
+
+    return () => {
+      stopped = true;
+      window.clearInterval(heartbeat);
+      window.removeEventListener("pagehide", onLeave);
+      window.removeEventListener("beforeunload", onLeave);
+      presenceBye();
+    };
   }, [qc, user, token]);
 
   useEffect(() => {
