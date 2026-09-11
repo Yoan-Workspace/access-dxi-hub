@@ -35,12 +35,11 @@ export function LivePollControl({
 
   return (
     <span
-      className="inline-flex items-center gap-1"
+      className="inline-flex items-center gap-0.5 rounded-md border border-border/70 bg-muted/50 py-0.5 pl-1.5 pr-0.5 text-[11px] font-medium text-muted-foreground"
       title="Prochaine vérification auto du statut live — toutes les DXI, toutes les 5 min"
     >
       <span className="tabular-nums">
-        <span className="hidden sm:inline">Live </span>
-        {label}
+        Live {label}
       </span>
       <button
         type="button"
@@ -52,7 +51,7 @@ export function LivePollControl({
         disabled={busy}
         aria-label="Rafraîchir le statut live"
         title="Rafraîchir maintenant le statut live des DXI"
-        className="inline-flex h-5 w-5 items-center justify-center rounded text-muted-foreground transition hover:bg-secondary hover:text-foreground disabled:cursor-not-allowed disabled:opacity-60"
+        className="inline-flex h-5 w-5 items-center justify-center rounded-sm text-muted-foreground transition hover:bg-background hover:text-foreground disabled:cursor-not-allowed disabled:opacity-60"
       >
         <RefreshCw className={cn("h-3 w-3", busy && "animate-spin")} />
       </button>

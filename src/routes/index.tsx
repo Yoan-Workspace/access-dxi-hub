@@ -622,26 +622,25 @@ function HomePage() {
               <Activity className="h-5 w-5" />
             </div>
             <div>
-              <h1 className="text-base font-semibold tracking-tight">Status Machines</h1>
-              <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted-foreground">
-                <span>DXI 9000 (Falcon / MP) & Access 2</span>
+              <div className="flex flex-wrap items-center gap-2">
+                <h1 className="text-base font-semibold tracking-tight">Status Machines</h1>
+                {user && API_CONFIGURED && (
+                  <LivePollControl
+                    nextPollAt={liveStatus?.nextPollAt ?? null}
+                    polling={Boolean(liveStatus?.polling)}
+                    refreshing={refreshLive.isPending}
+                    onRefresh={() => refreshLive.mutate()}
+                  />
+                )}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                DXI 9000 (Falcon / MP) & Access 2
                 {user && (
-                  <span className="text-foreground/70">
+                  <span className="ml-2 text-foreground/70">
                     · {user.displayName} ({roleLabel(user.role)})
                   </span>
                 )}
-                {user && API_CONFIGURED && (
-                  <>
-                    <span aria-hidden="true">·</span>
-                    <LivePollControl
-                      nextPollAt={liveStatus?.nextPollAt ?? null}
-                      polling={Boolean(liveStatus?.polling)}
-                      refreshing={refreshLive.isPending}
-                      onRefresh={() => refreshLive.mutate()}
-                    />
-                  </>
-                )}
-              </div>
+              </p>
             </div>
           </div>
 
