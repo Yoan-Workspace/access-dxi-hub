@@ -180,7 +180,7 @@ function HomePage() {
   const liveStatuses = liveStatus?.statuses ?? {};
 
   const refreshLive = useMutation({
-    mutationFn: refreshAllLiveStatus,
+    mutationFn: (machineIds: number[]) => refreshAllLiveStatus(machineIds),
     onSuccess: (snapshot) => {
       qc.setQueryData(["live-status"], snapshot);
     },
@@ -629,7 +629,13 @@ function HomePage() {
                     nextPollAt={liveStatus?.nextPollAt ?? null}
                     polling={Boolean(liveStatus?.polling)}
                     refreshing={refreshLive.isPending}
-                    onRefresh={() => refreshLive.mutate()}
+                    onRefresh={() =>
+                      refreshLive.mutate(
+                        machines
+                          .filter((machine) => machineKind(machine) === "MP")
+                          .map((machine) => machine.id),
+                      )
+                    }
                   />
                 )}
               </div>

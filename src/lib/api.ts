@@ -267,28 +267,6 @@ export interface LiveStatusSnapshot {
   lastPollFinishedAt: string | null;
 }
 
-function parseLiveStatusSnapshot(data: unknown): LiveStatusSnapshot {
-  if (data && typeof data === "object" && "statuses" in data) {
-    const wrap = data as Partial<LiveStatusSnapshot>;
-    return {
-      statuses: wrap.statuses ?? {},
-      polling: Boolean(wrap.polling),
-      pollIntervalMs: wrap.pollIntervalMs ?? LIVE_POLL_INTERVAL_MS,
-      nextPollAt: wrap.nextPollAt ?? null,
-      lastPollStartedAt: wrap.lastPollStartedAt ?? null,
-      lastPollFinishedAt: wrap.lastPollFinishedAt ?? null,
-    };
-  }
-  return {
-    statuses: (data as Record<number, LiveStatus>) ?? {},
-    polling: false,
-    pollIntervalMs: LIVE_POLL_INTERVAL_MS,
-    nextPollAt: null,
-    lastPollStartedAt: null,
-    lastPollFinishedAt: null,
-  };
-}
-
 const EMPTY_LIVE_STATUS: LiveStatusSnapshot = {
   statuses: {},
   polling: false,
@@ -298,13 +276,109 @@ const EMPTY_LIVE_STATUS: LiveStatusSnapshot = {
   lastPollFinishedAt: null,
 };
 
+function isLiveStatusEntry(value: unknown): value is LiveStatus {
+  return Boolean(value) && typeof value === "object" && "color" in value;
+}
+
+function deriveNextPollAt(
+  statuses: Record<number, LiveStatus>,
+  pollIntervalMs: number,
+): string | null {
+  let latest = 0;
+  for (const entry of Object.values(statuses)) {
+    if (!entry?.checkedAt) continue;
+    const t = Date.parse(entry.checkedAt);
+    if (Number.isFinite(t) && t > latest) latest = t;
+  }
+  if (!latest) return null;
+  return new Date(latest + pollIntervalMs).toISOString();
+}
+
+function parseLiveStatusSnapshot(data: unknown): LiveStatusSnapshot {
+  if (!data || typeof data !== "object") return EMPTY_LIVE_STATUS;
+
+  const raw = data as Record<string, unknown>;
+  let statuses: Record<number, LiveStatus> = {};
+  let polling = false;
+  let pollIntervalMs = LIVE_POLL_INTERVAL_MS;
+  let nextPollAt: string | null = null;
+  let lastPollStartedAt: string | null = null;
+  let lastPollFinishedAt: string | null = null;
+
+  if (raw.statuses && typeof raw.statuses === "object") {
+    statuses = raw.statuses as Record<number, LiveStatus>;
+    polling = Boolean(raw.polling);
+    pollIntervalMs =
+      typeof raw.pollIntervalMs === "number" ? raw.pollIntervalMs : LIVE_POLL_INTERVAL_MS;
+    nextPollAt = typeof raw.nextPollAt === "string" ? raw.nextPollAt : null;
+    lastPollStartedAt =
+      typeof raw.lastPollStartedAt === "string" ? raw.lastPollStartedAt : null;
+    lastPollFinishedAt =
+      typeof raw.lastPollFinishedAt === "string" ? raw.lastPollFinishedAt : null;
+  } else {
+    for (const [key, value] of Object.entries(raw)) {
+      const id = Number(key);
+      if (!Number.isFinite(id) || !isLiveStatusEntry(value)) continue;
+      statuses[id] = value;
+    }
+  }
+
+  if (!nextPollAt) {
+    nextPollAt = deriveNextPollAt(statuses, pollIntervalMs);
+  }
+
+  return {
+    statuses,
+    polling,
+    pollIntervalMs,
+    nextPollAt,
+    lastPollStartedAt,
+    lastPollFinishedAt,
+  };
+}
+
+function isNotFoundError(err: unknown) {
+  return err instanceof Error && /\b404\b/.test(err.message);
+}
+
 export async function fetchAllLiveStatus(): Promise<LiveStatusSnapshot> {
   if (!API_CONFIGURED) return EMPTY_LIVE_STATUS;
   return parseLiveStatusSnapshot(await apiFetch("/api/machines/live-status"));
 }
 
-export async function refreshAllLiveStatus(): Promise<LiveStatusSnapshot> {
-  return parseLiveStatusSnapshot(
-    await apiFetch("/api/machines/live-status/refresh", { method: "POST" }),
-  );
+export async function refreshAllLiveStatus(
+  machineIds: number[] = [],
+): Promise<LiveStatusSnapshot> {
+  try {
+    return parseLiveStatusSnapshot(
+      await apiFetch("/api/machines/live-status/refresh", { method: "POST" }),
+    );
+  } catch (err) {
+    if (!isNotFoundError(err)) throw err;
+  }
+
+  let ids = machineIds.filter((id) => Number.isFinite(id) && id > 0);
+  if (ids.length === 0) {
+    ids = Object.keys((await fetchAllLiveStatus()).statuses)
+      .map(Number)
+      .filter((id) => Number.isFinite(id) && id > 0);
+  }
+  if (ids.length === 0) {
+    throw new Error("Impossible de rafraîchir le statut live");
+  }
+
+  for (const id of ids) {
+    try {
+      await apiFetch(`/api/machines/${id}/live-status?refresh=true`);
+    } catch {
+      /* Access 2 or unreachable instrument */
+    }
+  }
+
+  const snapshot = await fetchAllLiveStatus();
+  if (snapshot.nextPollAt) return snapshot;
+  return {
+    ...snapshot,
+    nextPollAt: new Date(Date.now() + snapshot.pollIntervalMs).toISOString(),
+  };
 }

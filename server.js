@@ -2227,8 +2227,28 @@ app.put(
   },
 );
 
+function sendLiveStatusSnapshot(req, res) {
+  if (String(req.query.refresh) === "true") {
+    return res.json(requestLiveStatusRefresh());
+  }
+  res.json(liveStatusPayload());
+}
+
+app.get("/api/live-status", authMiddleware, sendLiveStatusSnapshot);
+app.post("/api/live-status/refresh", authMiddleware, (_req, res) => {
+  res.json(requestLiveStatusRefresh());
+});
+
+app.get("/api/machines/live-status", authMiddleware, sendLiveStatusSnapshot);
+app.post("/api/machines/live-status/refresh", authMiddleware, (_req, res) => {
+  res.json(requestLiveStatusRefresh());
+});
+
 app.get("/api/machines/:id/live-status", authMiddleware, async (req, res) => {
   const id = Number(req.params.id);
+  if (!Number.isFinite(id)) {
+    return res.status(400).json({ error: "Identifiant machine invalide" });
+  }
   const data = ensureDataShape(readData());
   const machine = findMachine(data, id);
   if (!machine) return res.status(404).json({ error: "Machine introuvable" });
@@ -2245,14 +2265,6 @@ app.get("/api/machines/:id/live-status", authMiddleware, async (req, res) => {
 
   const result = await refreshLiveStatus(machine);
   res.json(result ?? { color: "unknown", checkedAt: null, error: "No serial number" });
-});
-
-app.get("/api/machines/live-status", authMiddleware, (_req, res) => {
-  res.json(liveStatusPayload());
-});
-
-app.post("/api/machines/live-status/refresh", authMiddleware, (_req, res) => {
-  res.json(requestLiveStatusRefresh());
 });
 
 app.get("/api/machines", authMiddleware, (req, res) => {

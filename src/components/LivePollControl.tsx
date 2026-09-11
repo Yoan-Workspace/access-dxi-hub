@@ -34,27 +34,22 @@ export function LivePollControl({
   const label = busy ? "en cours" : countdown;
 
   return (
-    <span
-      className="inline-flex items-center gap-0.5 rounded-md border border-border/70 bg-muted/50 py-0.5 pl-1.5 pr-0.5 text-[11px] font-medium text-muted-foreground"
-      title="Prochaine vérification auto du statut live — toutes les DXI, toutes les 5 min"
+    <button
+      type="button"
+      onClick={(event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        if (!busy) onRefresh();
+      }}
+      disabled={busy}
+      aria-label="Rafraîchir le statut live"
+      title="Prochaine vérification auto du statut live — toutes les DXI, toutes les 5 min. Cliquer pour rafraîchir maintenant."
+      className="inline-flex items-center gap-0.5 rounded-md border border-border/70 bg-muted/50 py-0.5 pl-1.5 pr-0.5 text-[11px] font-medium text-muted-foreground transition hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-60"
     >
-      <span className="tabular-nums">
-        Live {label}
-      </span>
-      <button
-        type="button"
-        onClick={(event) => {
-          event.preventDefault();
-          event.stopPropagation();
-          if (!busy) onRefresh();
-        }}
-        disabled={busy}
-        aria-label="Rafraîchir le statut live"
-        title="Rafraîchir maintenant le statut live des DXI"
-        className="inline-flex h-5 w-5 items-center justify-center rounded-sm text-muted-foreground transition hover:bg-background hover:text-foreground disabled:cursor-not-allowed disabled:opacity-60"
-      >
+      <span className="tabular-nums">Live {label}</span>
+      <span className="inline-flex h-5 w-5 items-center justify-center rounded-sm">
         <RefreshCw className={cn("h-3 w-3", busy && "animate-spin")} />
-      </button>
-    </span>
+      </span>
+    </button>
   );
 }
