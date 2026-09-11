@@ -172,9 +172,7 @@ function HomePage() {
     enabled: Boolean(user) && API_CONFIGURED,
     refetchInterval: (query) => {
       if (query.state.data?.polling) return 2000;
-      const next = query.state.data?.nextPollAt
-        ? Date.parse(query.state.data.nextPollAt)
-        : NaN;
+      const next = query.state.data?.nextPollAt ? Date.parse(query.state.data.nextPollAt) : NaN;
       if (Number.isFinite(next) && next - Date.now() <= 3000) return 2000;
       return 15_000;
     },
