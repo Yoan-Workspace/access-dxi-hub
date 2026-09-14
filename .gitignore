@@ -17,6 +17,7 @@ dist-ssr
 data/*
 !data/data.json
 !data/.gitkeep
+presence/
 *.local
 .env
 
