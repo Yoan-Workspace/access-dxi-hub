@@ -3,7 +3,7 @@ import { Plus, Trash2, Check, Ticket as TicketIcon } from "lucide-react";
 import type { ChecklistItem, Machine, Ticket, TicketCategory, TodoItem } from "@/lib/types";
 import { machineKind } from "@/lib/types";
 import { getMachineWave, inferSerialFromName } from "@/lib/machineWave";
-import { applyTicketsToMachine, linkTicketIdsPreserveText, mergeNewTicketItems, syncChecklistsFromTickets } from "@/lib/ticketSync";
+import { applyTicketsToMachine, linkTicketIdsPreserveText, mergeNewTicketItems, relocateLinkedItems, syncChecklistsFromTickets } from "@/lib/ticketSync";
 import { MachineTicketsPanel } from "@/components/MachineTicketsPanel";
 import { ItemChecklist } from "@/components/ItemChecklist";
 import { ProgressRing, ProgressStatusBadge } from "@/components/ProgressRing";
@@ -159,7 +159,8 @@ export function EditMachineDialog({
     setDraft((current) => {
       if (!current) return current;
       const linked = linkTicketIdsPreserveText(current, tickets);
-      const merged = mergeNewTicketItems(linked, tickets);
+      const relocated = relocateLinkedItems(linked, tickets);
+      const merged = mergeNewTicketItems(relocated, tickets);
       return syncChecklistsFromTickets(merged, tickets);
     });
   }, [open, tickets]);
