@@ -258,6 +258,33 @@ export function mergeNewTicketItems(machine: Machine, tickets: Ticket[]): Machin
   return changed ? next : machine;
 }
 
+/** Déplace une ligne si son ticket a changé de catégorie (ex. problème → improvement). */
+export function relocateLinkedItems(machine: Machine, tickets: Ticket[]): Machine {
+  const next: Machine = {
+    ...machine,
+    flags: [...(machine.flags ?? [])],
+    problems: [...(machine.problems ?? [])],
+    improvements: [...(machine.improvements ?? [])],
+  };
+
+  let changed = false;
+
+  for (const key of LINKED_LIST_KEYS) {
+    const category = categoryForListKey(key);
+    const filtered = next[key].filter((item) => {
+      if (item.ticketId == null) return true;
+      const ticket = tickets.find((entry) => sameId(entry.id, item.ticketId));
+      if (!ticket || !isLinkedTicket(ticket)) return true;
+      if (ticket.category === category) return true;
+      changed = true;
+      return false;
+    });
+    if (filtered.length !== next[key].length) next[key] = filtered;
+  }
+
+  return changed ? next : machine;
+}
+
 /** Aligne les checklists des flags / problèmes / improvements sur les tickets liés. */
 export function syncChecklistsFromTickets(machine: Machine, tickets: Ticket[]): Machine {
   let changed = false;
