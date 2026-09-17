@@ -1,7 +1,12 @@
 import { useEffect, useState } from "react";
 import { Loader2, Trash2 } from "lucide-react";
 import type { ChecklistItem, Ticket, TicketCategory } from "@/lib/types";
-import { TICKET_CATEGORY_LABELS, canDeleteTicket, canEditTicket } from "@/lib/permissions";
+import {
+  TICKET_CATEGORY_LABELS,
+  TICKET_EDIT_CATEGORIES,
+  canDeleteTicket,
+  canEditTicket,
+} from "@/lib/permissions";
 import { useAuth } from "@/lib/auth";
 import { ItemChecklist } from "@/components/ItemChecklist";
 import { ProgressRing, ProgressStatusBadge } from "@/components/ProgressRing";
@@ -17,7 +22,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 
-const categories: TicketCategory[] = ["probleme", "flag"];
+const categories: TicketCategory[] = TICKET_EDIT_CATEGORIES;
 
 function fmtDate(iso: string) {
   try {

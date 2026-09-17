@@ -9,16 +9,42 @@ function sameId(a: number | string | undefined, b: number | string | undefined) 
   return Number(a) === Number(b);
 }
 
-function listKeyForCategory(
-  category: Ticket["category"],
-): "problems" | "flags" | null {
+type LinkedListKey = "problems" | "flags" | "improvements";
+
+const LINKED_LIST_KEYS = ["flags", "problems", "improvements"] as const;
+
+function listKeyForCategory(category: Ticket["category"]): LinkedListKey | null {
   if (category === "probleme") return "problems";
   if (category === "flag") return "flags";
+  if (category === "amelioration") return "improvements";
   return null;
 }
 
+function categoryForListKey(key: LinkedListKey): "probleme" | "flag" | "amelioration" {
+  if (key === "flags") return "flag";
+  if (key === "improvements") return "amelioration";
+  return "probleme";
+}
+
+function isLinkedTicket(ticket: Ticket) {
+  return (
+    ticket.category === "probleme" ||
+    ticket.category === "flag" ||
+    ticket.category === "amelioration"
+  );
+}
+
+export function overlayLinkedLists(current: Machine, machine: Machine): Machine {
+  return {
+    ...current,
+    flags: machine.flags ?? current.flags,
+    problems: machine.problems ?? current.problems,
+    improvements: machine.improvements ?? current.improvements,
+  };
+}
+
 /**
- * Fusionne les tickets problème/flag dans les listes de la machine
+ * Fusionne les tickets problème / flag / improvement dans les listes de la machine
  * pour qu'elles restent liées (ticketId + texte + statut).
  */
 export function applyTicketsToMachine(
@@ -31,25 +57,25 @@ export function applyTicketsToMachine(
     ...machine,
     flags: (machine.flags ?? []).map((item) => ({ ...item })),
     problems: (machine.problems ?? []).map((item) => ({ ...item })),
+    improvements: (machine.improvements ?? []).map((item) => ({ ...item })),
   };
 
   const related = tickets.filter(
-    (t) =>
-      sameId(t.machineId, machine.id) &&
-      (t.category === "probleme" || t.category === "flag"),
+    (t) => sameId(t.machineId, machine.id) && isLinkedTicket(t),
   );
-
-  const existingTicketIds = new Set(related.map((t) => Number(t.id)));
 
   // Ne pas retirer les lignes liées tant que la liste des tickets n'est pas chargée :
   // tickets=[] au premier rendu ferait disparaître les problèmes / flags.
   if (pruneMissing) {
-    next.flags = next.flags.filter(
-      (item) => item.ticketId == null || existingTicketIds.has(Number(item.ticketId)),
-    );
-    next.problems = next.problems.filter(
-      (item) => item.ticketId == null || existingTicketIds.has(Number(item.ticketId)),
-    );
+    for (const key of LINKED_LIST_KEYS) {
+      const category = categoryForListKey(key);
+      const ids = new Set(
+        related.filter((ticket) => ticket.category === category).map((ticket) => Number(ticket.id)),
+      );
+      next[key] = next[key].filter(
+        (item) => item.ticketId == null || ids.has(Number(item.ticketId)),
+      );
+    }
   }
 
   for (const ticket of related) {
@@ -115,7 +141,7 @@ export function applyTicketsToMachines(
 
 export function findLinkedTicket(
   tickets: Ticket[],
-  category: "probleme" | "flag",
+  category: "probleme" | "flag" | "amelioration",
   item: TodoItem,
 ): Ticket | undefined {
   if (item.ticketId != null) {
@@ -142,12 +168,13 @@ export function linkTicketIdsPreserveText(
     ...machine,
     flags: (machine.flags ?? []).map((item) => ({ ...item })),
     problems: (machine.problems ?? []).map((item) => ({ ...item })),
+    improvements: (machine.improvements ?? []).map((item) => ({ ...item })),
   };
 
   let changed = false;
 
-  for (const key of ["flags", "problems"] as const) {
-    const category = key === "flags" ? "flag" : "probleme";
+  for (const key of LINKED_LIST_KEYS) {
+    const category = categoryForListKey(key);
     const list = next[key];
     const related = tickets.filter(
       (ticket) =>
@@ -190,6 +217,7 @@ export function mergeNewTicketItems(machine: Machine, tickets: Ticket[]): Machin
     ...machine,
     flags: [...(machine.flags ?? [])],
     problems: [...(machine.problems ?? [])],
+    improvements: [...(machine.improvements ?? [])],
   };
 
   for (const ticket of tickets) {
@@ -230,16 +258,17 @@ export function mergeNewTicketItems(machine: Machine, tickets: Ticket[]): Machin
   return changed ? next : machine;
 }
 
-/** Aligne les checklists des flags / problèmes sur les tickets liés. */
+/** Aligne les checklists des flags / problèmes / improvements sur les tickets liés. */
 export function syncChecklistsFromTickets(machine: Machine, tickets: Ticket[]): Machine {
   let changed = false;
   const next: Machine = {
     ...machine,
     flags: (machine.flags ?? []).map((item) => ({ ...item })),
     problems: (machine.problems ?? []).map((item) => ({ ...item })),
+    improvements: (machine.improvements ?? []).map((item) => ({ ...item })),
   };
 
-  for (const key of ["flags", "problems"] as const) {
+  for (const key of LINKED_LIST_KEYS) {
     next[key] = next[key].map((item) => {
       if (item.ticketId == null) return item;
       const ticket = tickets.find((entry) => sameId(entry.id, item.ticketId));

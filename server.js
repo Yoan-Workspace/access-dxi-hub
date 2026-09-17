@@ -883,7 +883,9 @@ function startPresenceServices() {
 }
 
 function ticketCategoryLabel(category) {
-  return category === "flag" ? "Flag" : "Problème";
+  if (category === "flag") return "Flag";
+  if (category === "amelioration") return "Improvement";
+  return "Problème";
 }
 
 function isOfficeIncomingWebhook(url) {
@@ -943,7 +945,9 @@ function teamsTicketPayload({ ticket, machine }, event = "opened") {
           ? "22C55E"
           : ticket.category === "flag"
             ? "EAB308"
-            : "EF4444",
+            : ticket.category === "amelioration"
+              ? "3B82F6"
+              : "EF4444",
       summary: title,
       title,
       sections: [{ facts, text: ticket.comment }],
@@ -1037,16 +1041,17 @@ function findMachine(data, machineId) {
   return data.machines.find((m) => m.id === Number(machineId));
 }
 
+const TICKET_LIST_BY_CATEGORY = {
+  flag: "flags",
+  probleme: "problems",
+  amelioration: "improvements",
+};
+
 function machineListForCategory(machine, category) {
-  if (category === "flag") {
-    if (!Array.isArray(machine.flags)) machine.flags = [];
-    return machine.flags;
-  }
-  if (category === "probleme") {
-    if (!Array.isArray(machine.problems)) machine.problems = [];
-    return machine.problems;
-  }
-  return null;
+  const key = TICKET_LIST_BY_CATEGORY[category];
+  if (!key) return null;
+  if (!Array.isArray(machine[key])) machine[key] = [];
+  return machine[key];
 }
 
 function nextMachineItemId(machine) {
@@ -1152,6 +1157,58 @@ function applyChecklistToLinkedTicket(data, item) {
   return ticket;
 }
 
+function findItemByTicketId(machine, ticketId) {
+  const id = Number(ticketId);
+  if (!Number.isFinite(id)) return null;
+  for (const key of ["flags", "problems", "improvements"]) {
+    const list = machine[key];
+    if (!Array.isArray(list)) continue;
+    const index = list.findIndex((item) => Number(item.ticketId) === id);
+    if (index !== -1) return { item: list[index], list, index, key };
+  }
+  return null;
+}
+
+function ticketLinkedOnMachine(machine, ticketId) {
+  return Boolean(findItemByTicketId(machine, ticketId));
+}
+
+function moveTicketToCategory(machine, ticket, fromCategory) {
+  const dest = machineListForCategory(machine, ticket.category);
+  if (!dest) return null;
+
+  let found = findItemByTicketId(machine, ticket.id);
+  if (!found && ticket.itemId != null) {
+    const byId = findMachineItemById(machine, ticket.itemId);
+    if (byId) {
+      const list = machine[byId.key];
+      found = { item: byId.item, list, index: list.indexOf(byId.item), key: byId.key };
+    }
+  }
+  if (!found) {
+    const item = findLinkedItem(machine, fromCategory, ticket);
+    const list = machineListForCategory(machine, fromCategory);
+    const index = list && item ? list.indexOf(item) : -1;
+    if (item && list && index !== -1) found = { item, list, index };
+  }
+
+  if (found?.list && found.list !== dest) {
+    found.list.splice(found.index, 1);
+    dest.push(found.item);
+  }
+
+  const item = found?.item || addTicketToMachineCategory(
+    machine,
+    ticket.category,
+    ticket.comment,
+    ticket,
+  );
+  if (!item) return null;
+  item.text = ticket.comment;
+  bindTicketAndItem(machine, ticket, item);
+  return item;
+}
+
 function findLinkedItem(machine, category, ticket) {
   const list = machineListForCategory(machine, category);
   if (!list || !ticket) return null;
@@ -1227,7 +1284,7 @@ function removeTicketFromMachine(machine, ticketId) {
   if (ticketId == null) return false;
   let changed = false;
 
-  for (const key of ["flags", "problems"]) {
+  for (const key of ["flags", "problems", "improvements"]) {
     const list = machine[key];
     if (!Array.isArray(list)) continue;
     const next = list.filter(
@@ -1361,11 +1418,12 @@ function syncMachineLinkedTickets(data, previous, machine, user) {
   const created = [];
   const closed = [];
   const pairs = [
-    ["problems", "probleme"],
-    ["flags", "flag"],
+    ["problems", "probleme", true],
+    ["flags", "flag", true],
+    ["improvements", "amelioration", false],
   ];
 
-  for (const [listKey, category] of pairs) {
+  for (const [listKey, category, createIfMissing] of pairs) {
     const nextList = Array.isArray(machine[listKey]) ? machine[listKey] : [];
     const prevList = Array.isArray(previous[listKey]) ? previous[listKey] : [];
     inheritSameRowTicketId(nextList, prevList);
@@ -1379,6 +1437,7 @@ function syncMachineLinkedTickets(data, previous, machine, user) {
     for (const old of prevList) {
       if (old.ticketId == null) continue;
       if (nextIds.has(Number(old.ticketId))) continue;
+      if (ticketLinkedOnMachine(machine, old.ticketId)) continue;
       const index = data.tickets.findIndex(
         (ticket) => Number(ticket.id) === Number(old.ticketId),
       );
@@ -1393,6 +1452,7 @@ function syncMachineLinkedTickets(data, previous, machine, user) {
       let ticket = findTicketForItem(data, machine, category, item);
 
       if (!ticket) {
+        if (!createIfMissing) continue;
         ticket = createLinkedTicket(
           data,
           machine,
@@ -1478,15 +1538,33 @@ function closeTicketsForCompletedItems(data, machine, closedBy) {
     }
   }
 
+  for (const item of machine.improvements ?? []) {
+    if (!item?.completed) continue;
+    if (item.ticketId != null) {
+      const ticket = closeTicketById(data, item.ticketId, closedBy);
+      if (ticket) closed.push(ticket);
+    } else if (item.text) {
+      closed.push(
+        ...closeMatchingOpenTickets(
+          data,
+          machine.id,
+          "amelioration",
+          item.text,
+          closedBy,
+        ),
+      );
+    }
+  }
+
   return closed;
 }
 
-/** Réinjecte les tickets ouverts manquants dans flags / problems des machines. */
+/** Réinjecte les tickets ouverts manquants dans flags / problems / improvements. */
 function syncOpenTicketsIntoMachines(data) {
   let changed = false;
 
   for (const ticket of data.tickets) {
-    if (ticket.category !== "flag" && ticket.category !== "probleme") continue;
+    if (!TICKET_LIST_BY_CATEGORY[ticket.category]) continue;
 
     const machine = findMachine(data, ticket.machineId);
     if (!machine) continue;
@@ -2261,9 +2339,9 @@ app.put("/api/tickets/:id", authMiddleware, requireRole("admin", "technicien"), 
   const { category, comment, status, checklist } = req.body ?? {};
   const allowedStatus = ["open", "closed"];
 
-  if (category && !["probleme", "flag"].includes(category)) {
+  if (category && !["probleme", "flag", "amelioration"].includes(category)) {
     return res.status(400).json({
-      error: "Catégorie invalide (problème ou flag uniquement)",
+      error: "Catégorie invalide (problème, flag ou improvement)",
     });
   }
 
@@ -2308,12 +2386,7 @@ app.put("/api/tickets/:id", authMiddleware, requireRole("admin", "technicien"), 
       const machine = findMachine(data, updated.machineId);
       if (machine) {
         if (current.category !== updated.category) {
-          for (const key of ["flags", "problems"]) {
-            const list = machine[key];
-            if (!Array.isArray(list)) continue;
-            const linked = list.find((item) => item.ticketId === updated.id);
-            if (linked) delete linked.ticketId;
-          }
+          moveTicketToCategory(machine, updated, current.category);
         }
 
         if (updated.status === "open") {
@@ -2373,15 +2446,14 @@ app.delete(
         const machine = findMachine(data, removed.machineId);
         if (machine) {
           removeTicketFromMachine(machine, removed.id);
-          if (removed.category === "flag" || removed.category === "probleme") {
-            const key = removed.category === "flag" ? "flags" : "problems";
-            if (Array.isArray(machine[key])) {
-              machine[key] = machine[key].filter(
-                (item) =>
-                  Number(item.ticketId) !== Number(removed.id) &&
-                  !(item.ticketId == null && item.text === removed.comment),
-              );
-            }
+          const list = machineListForCategory(machine, removed.category);
+          const key = TICKET_LIST_BY_CATEGORY[removed.category];
+          if (list && key) {
+            machine[key] = list.filter(
+              (item) =>
+                Number(item.ticketId) !== Number(removed.id) &&
+                !(item.ticketId == null && item.text === removed.comment),
+            );
           }
         }
         return { machine: machine ?? null };

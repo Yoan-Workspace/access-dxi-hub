@@ -66,7 +66,7 @@ import {
 import { useTheme } from "@/lib/theme";
 import { FALCON_MP_LAB_DASHBOARD_URL } from "@/lib/labManager";
 import { afterUiSettled } from "@/lib/ui";
-import { applyTicketsToMachine, applyTicketsToMachines, syncChecklistsFromTickets } from "@/lib/ticketSync";
+import { applyTicketsToMachine, applyTicketsToMachines, overlayLinkedLists, syncChecklistsFromTickets } from "@/lib/ticketSync";
 import { effectiveStatus, hasOpenProblems } from "@/lib/machineEtat";
 import { toast } from "sonner";
 import { DxiWaveNote } from "@/components/DxiWaveNote";
@@ -256,7 +256,7 @@ function HomePage() {
     return ids;
   }, [tickets]);
 
-  /** Machines avec problems/flags synchronisés depuis les tickets */
+  /** Machines avec problèmes / flags / improvements synchronisés depuis les tickets */
   const syncedMachines = useMemo(
     () =>
       applyTicketsToMachines(machines, tickets, {
@@ -346,11 +346,13 @@ function HomePage() {
         name: machine.name,
         problems: machine.problems,
         flags: machine.flags,
+        improvements: machine.improvements,
       })),
       tickets: tickets.map((ticket) => ({
         id: ticket.id,
         comment: ticket.comment,
         status: ticket.status,
+        category: ticket.category,
         updatedAt: ticket.updatedAt,
         checklist: ticket.checklist,
       })),
@@ -484,11 +486,7 @@ function HomePage() {
         }
         const base =
           machine && Number(machine.id) === Number(current.id)
-            ? {
-                ...current,
-                flags: machine.flags ?? current.flags,
-                problems: machine.problems ?? current.problems,
-              }
+            ? overlayLinkedLists(current, machine)
             : current;
         return applyTicketsToMachine(base, allTickets);
       });
@@ -545,11 +543,7 @@ function HomePage() {
         }
         const base =
           machine && Number(machine.id) === Number(current.id)
-            ? {
-                ...current,
-                flags: machine.flags ?? current.flags,
-                problems: machine.problems ?? current.problems,
-              }
+            ? overlayLinkedLists(current, machine)
             : current;
         return applyTicketsToMachine(base, allTickets);
       });
@@ -584,11 +578,7 @@ function HomePage() {
         if (!current) return current;
         const base =
           result?.machine && Number(result.machine.id) === Number(current.id)
-            ? {
-                ...current,
-                flags: result.machine.flags ?? current.flags,
-                problems: result.machine.problems ?? current.problems,
-              }
+            ? overlayLinkedLists(current, result.machine)
             : current;
         return applyTicketsToMachine(base, allTickets);
       });

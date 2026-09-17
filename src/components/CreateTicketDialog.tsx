@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Loader2 } from "lucide-react";
 import type { Machine, TicketCategory } from "@/lib/types";
-import { TICKET_CATEGORY_LABELS } from "@/lib/permissions";
+import { TICKET_CATEGORY_LABELS, TICKET_CREATE_CATEGORIES } from "@/lib/permissions";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -20,7 +20,7 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 
-const categories: TicketCategory[] = ["probleme", "flag"];
+const categories: TicketCategory[] = TICKET_CREATE_CATEGORIES;
 
 interface Props {
   open: boolean;

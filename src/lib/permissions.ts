@@ -46,8 +46,20 @@ export const TICKET_CATEGORY_LABELS: Record<
   reparation: "Réparation",
   probleme: "Problème",
   flag: "Flag",
+  amelioration: "Improvement",
   non_classe: "Non classé",
 };
+
+export const TICKET_CREATE_CATEGORIES: import("./types").TicketCategory[] = [
+  "probleme",
+  "flag",
+];
+
+export const TICKET_EDIT_CATEGORIES: import("./types").TicketCategory[] = [
+  "probleme",
+  "flag",
+  "amelioration",
+];
 
 export function isReadOnlyUser(user: User | null) {
   return user?.role === "operateur";

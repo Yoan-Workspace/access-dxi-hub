@@ -18,7 +18,7 @@ export interface ChecklistItem {
 }
 
 export interface TodoItem {
-  /** Identifiant stable de la ligne (problème / flag) */
+  /** Identifiant stable de la ligne (problème / flag / improvement) */
   id?: number;
   text: string;
   completed: boolean;
@@ -60,7 +60,12 @@ export type MachineKind = "MP" | "ACCESS";
 
 export type UserRole = "admin" | "technicien" | "operateur";
 
-export type TicketCategory = "reparation" | "probleme" | "flag" | "non_classe";
+export type TicketCategory =
+  | "reparation"
+  | "probleme"
+  | "flag"
+  | "amelioration"
+  | "non_classe";
 
 export type TicketStatus = "open" | "closed";
 
