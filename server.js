@@ -1209,6 +1209,43 @@ function moveTicketToCategory(machine, ticket, fromCategory) {
   return item;
 }
 
+function alignMachineListsToTickets(machine, tickets) {
+  const related = (tickets || []).filter(
+    (ticket) => Number(ticket.machineId) === Number(machine.id),
+  );
+  const byTicketId = new Map(
+    related.map((ticket) => [Number(ticket.id), ticket]),
+  );
+  const moved = { flags: [], problems: [], improvements: [] };
+
+  for (const key of ["flags", "problems", "improvements"]) {
+    const list = Array.isArray(machine[key]) ? machine[key] : [];
+    const kept = [];
+    for (const item of list) {
+      const ticket =
+        item?.ticketId != null ? byTicketId.get(Number(item.ticketId)) : null;
+      const dest = ticket ? TICKET_LIST_BY_CATEGORY[ticket.category] : null;
+      if (dest && dest !== key) {
+        moved[dest].push(item);
+        continue;
+      }
+      kept.push(item);
+    }
+    machine[key] = kept;
+  }
+
+  for (const dest of ["flags", "problems", "improvements"]) {
+    if (!Array.isArray(machine[dest])) machine[dest] = [];
+    for (const item of moved[dest]) {
+      const ticketId = Number(item.ticketId);
+      if (machine[dest].some((entry) => Number(entry.ticketId) === ticketId)) {
+        continue;
+      }
+      machine[dest].push(item);
+    }
+  }
+}
+
 function findLinkedItem(machine, category, ticket) {
   const list = machineListForCategory(machine, category);
   if (!list || !ticket) return null;
@@ -1450,6 +1487,21 @@ function syncMachineLinkedTickets(data, previous, machine, user) {
       ensureItemId(machine, item);
 
       let ticket = findTicketForItem(data, machine, category, item);
+      if (ticket && ticket.category !== category) {
+        continue;
+      }
+      if (
+        !ticket &&
+        item.id != null &&
+        data.tickets.some(
+          (entry) =>
+            Number(entry.machineId) === Number(machine.id) &&
+            Number(entry.itemId) === Number(item.id) &&
+            entry.category !== category,
+        )
+      ) {
+        continue;
+      }
 
       if (!ticket) {
         if (!createIfMissing) continue;
@@ -2407,6 +2459,7 @@ app.put("/api/tickets/:id", authMiddleware, requireRole("admin", "technicien"), 
           if (linked) bindTicketAndItem(machine, updated, linked);
         }
         applyChecklistToLinkedItem(machine, updated);
+        alignMachineListsToTickets(machine, data.tickets);
       }
 
       return {
@@ -2681,6 +2734,7 @@ app.put(
           machine,
           req.user,
         );
+        alignMachineListsToTickets(machine, data.tickets);
         data.machines[index] = machine;
         return {
           machine,

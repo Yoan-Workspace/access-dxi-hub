@@ -97,8 +97,23 @@ function TicketRow({
   const [tasksOpen, setTasksOpen] = useState(false);
 
   useEffect(() => {
+    setCategory(ticket.category);
+    setComment(ticket.comment);
     setChecklist(ticket.checklist ?? []);
-  }, [ticket.checklist]);
+  }, [ticket.category, ticket.comment, ticket.checklist]);
+
+  const saveCategory = async (next: TicketCategory) => {
+    if (next === ticket.category) return;
+    setCategory(next);
+    setSaving(true);
+    try {
+      await onUpdate(ticket.id, { category: next });
+    } catch {
+      setCategory(ticket.category);
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const save = async () => {
     setSaving(true);
@@ -161,7 +176,7 @@ function TicketRow({
                 {ticket.status === "open" ? "Ouvert" : "Fermé"}
               </span>
               <span className="rounded-full bg-secondary px-2 py-0.5 text-[10px] font-medium">
-                {TICKET_CATEGORY_LABELS[ticket.category]}
+                {TICKET_CATEGORY_LABELS[ticket.category] ?? ticket.category}
               </span>
               <ProgressStatusBadge items={checklist} />
             </div>
@@ -174,6 +189,16 @@ function TicketRow({
         </div>
 
         <div className="flex flex-wrap gap-2">
+          {editable && ticket.category !== "amelioration" && (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => void saveCategory("amelioration")}
+              disabled={saving}
+            >
+              Passer en Improvement
+            </Button>
+          )}
           {editable && (
             <>
               <Button
@@ -222,30 +247,38 @@ function TicketRow({
         <div className="mt-4 space-y-3 border-t pt-4">
           <div className="space-y-1.5">
             <Label>Catégorie</Label>
-            <Select value={category} onValueChange={(v) => setCategory(v as TicketCategory)}>
+            <Select
+              value={category}
+              onValueChange={(v) => void saveCategory(v as TicketCategory)}
+              disabled={saving}
+            >
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="z-[200]">
                 {(categories.includes(category) ? categories : [category, ...categories]).map(
                   (c) => (
                     <SelectItem key={c} value={c}>
-                      {TICKET_CATEGORY_LABELS[c]}
+                      {TICKET_CATEGORY_LABELS[c] ?? c}
                     </SelectItem>
                   ),
                 )}
               </SelectContent>
             </Select>
+            <p className="text-[11px] text-muted-foreground">
+              Le changement de catégorie est enregistré tout de suite.
+            </p>
           </div>
           <div className="space-y-1.5">
             <Label>Commentaire</Label>
             <Textarea value={comment} onChange={(e) => setComment(e.target.value)} rows={3} />
           </div>
           <Button size="sm" onClick={() => void save()} disabled={saving}>
-            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Enregistrer"}
+            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Enregistrer le commentaire"}
           </Button>
         </div>
       )}
     </li>
   );
 }
+

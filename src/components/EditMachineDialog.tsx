@@ -252,7 +252,7 @@ export function EditMachineDialog({
   const save = async () => {
   if (!draft) return;
 
-  const linked = linkTicketIdsPreserveText(draft, tickets);
+  const linked = relocateLinkedItems(linkTicketIdsPreserveText(draft, tickets), tickets);
 
   // La date de dernière intervention est mise à jour automatiquement à
   // l'enregistrement, sauf si elle a été renseignée manuellement.
