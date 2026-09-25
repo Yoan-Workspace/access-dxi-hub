@@ -215,17 +215,21 @@ export async function updateMachineItemChecklist(
 export async function archiveMachineItem(
   machineId: number,
   itemId: number,
+  listKey?: string,
 ): Promise<{ machine: Machine }> {
   return (await apiFetch(`/api/machines/${machineId}/items/${itemId}/archive`, {
     method: "PUT",
+    body: JSON.stringify({ listKey: listKey ?? null }),
   })) as { machine: Machine };
 }
 
 export async function deleteMachineItem(
   machineId: number,
   itemId: number,
+  listKey?: string,
 ): Promise<{ machine: Machine | null; ticketId?: number | null }> {
-  return (await apiFetch(`/api/machines/${machineId}/items/${itemId}`, {
+  const query = listKey ? `?listKey=${encodeURIComponent(listKey)}` : "";
+  return (await apiFetch(`/api/machines/${machineId}/items/${itemId}${query}`, {
     method: "DELETE",
   })) as { machine: Machine | null; ticketId?: number | null };
 }

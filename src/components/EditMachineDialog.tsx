@@ -82,8 +82,8 @@ interface Props {
     checklist: ChecklistItem[],
   ) => Promise<void>;
   onOpenCreateTicket?: () => void;
-  onArchiveItem?: (itemId: number) => Promise<void>;
-  onDeleteItem?: (itemId: number) => Promise<void>;
+  onArchiveItem?: (itemId: number, listKey: ArchiveListKey) => Promise<void>;
+  onDeleteItem?: (itemId: number, listKey: ArchiveListKey) => Promise<void>;
   canArchive?: boolean;
   canDeleteItems?: boolean;
 }
@@ -280,7 +280,7 @@ export function EditMachineDialog({
         );
         setList(listKey, next);
         if (item.id != null && onArchiveItem && (machine?.[listKey] ?? []).some((entry) => Number(entry.id) === Number(item.id))) {
-          await onArchiveItem(item.id);
+          await onArchiveItem(item.id, listKey);
         }
       } else {
         const next = list.filter(
@@ -291,7 +291,7 @@ export function EditMachineDialog({
         );
         setList(listKey, next);
         if (item.id != null && onDeleteItem && (machine?.[listKey] ?? []).some((entry) => Number(entry.id) === Number(item.id))) {
-          await onDeleteItem(item.id);
+          await onDeleteItem(item.id, listKey);
         } else if (item.ticketId != null && onDeleteTicket) {
           await onDeleteTicket(item.ticketId);
         }

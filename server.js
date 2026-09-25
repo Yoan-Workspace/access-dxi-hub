@@ -1131,10 +1131,12 @@ function normalizeChecklist(input) {
 
 const ITEM_LIST_KEYS = ["flags", "problems", "improvements", "repairs"];
 
-function findMachineItemById(machine, itemId) {
+function findMachineItemById(machine, itemId, listKey) {
   const id = Number(itemId);
   if (!Number.isFinite(id)) return null;
-  for (const key of ITEM_LIST_KEYS) {
+  const keys =
+    listKey && ITEM_LIST_KEYS.includes(listKey) ? [listKey] : ITEM_LIST_KEYS;
+  for (const key of keys) {
     const list = machine[key];
     if (!Array.isArray(list)) continue;
     const item = list.find((entry) => Number(entry.id) === id);
@@ -2715,15 +2717,17 @@ app.put(
           throw new DbAbort(404, "Machine introuvable");
         }
 
-        const found = findMachineItemById(machine, itemId);
+        const found = findMachineItemById(machine, itemId, req.body?.listKey);
         if (!found) {
           throw new DbAbort(404, "Élément introuvable");
         }
-        if (!found.item.completed) {
-          throw new DbAbort(400, "Seule une action terminée peut être archivée");
-        }
 
         const now = new Date().toISOString().slice(0, 19);
+        if (!found.item.completed) {
+          found.item.completed = true;
+          found.item.completedDate =
+            found.item.completedDate || new Date().toLocaleDateString("fr-FR");
+        }
         found.item.archived = true;
         found.item.archivedAt = now;
         if (!found.item.createdAt) found.item.createdAt = now;
@@ -2754,7 +2758,11 @@ app.delete(
           throw new DbAbort(404, "Machine introuvable");
         }
 
-        const found = findMachineItemById(machine, itemId);
+        const found = findMachineItemById(
+          machine,
+          itemId,
+          req.query.listKey || req.body?.listKey,
+        );
         if (!found) {
           throw new DbAbort(404, "Élément introuvable");
         }

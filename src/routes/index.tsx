@@ -633,8 +633,15 @@ function HomePage() {
   };
 
   const archiveItemMutation = useMutation({
-    mutationFn: ({ machineId, itemId }: { machineId: number; itemId: number }) =>
-      archiveMachineItem(machineId, itemId),
+    mutationFn: ({
+      machineId,
+      itemId,
+      listKey,
+    }: {
+      machineId: number;
+      itemId: number;
+      listKey?: string;
+    }) => archiveMachineItem(machineId, itemId, listKey),
     onMutate: markLocalWrite,
     onSuccess: ({ machine }) => {
       applyMachineUpdate(machine);
@@ -644,8 +651,15 @@ function HomePage() {
   });
 
   const deleteItemMutation = useMutation({
-    mutationFn: ({ machineId, itemId }: { machineId: number; itemId: number }) =>
-      deleteMachineItem(machineId, itemId),
+    mutationFn: ({
+      machineId,
+      itemId,
+      listKey,
+    }: {
+      machineId: number;
+      itemId: number;
+      listKey?: string;
+    }) => deleteMachineItem(machineId, itemId, listKey),
     onMutate: markLocalWrite,
     onSuccess: ({ machine, ticketId }) => {
       if (machine) applyMachineUpdate(machine, ticketId);
@@ -986,20 +1000,22 @@ function HomePage() {
         canDeleteItems={canDeleteItem(user?.role)}
         onArchiveItem={
           API_CONFIGURED && editing && canArchiveItem(user?.role)
-            ? async (itemId) => {
+            ? async (itemId, listKey) => {
                 await archiveItemMutation.mutateAsync({
                   machineId: editing.id,
                   itemId,
+                  listKey,
                 });
               }
             : undefined
         }
         onDeleteItem={
           API_CONFIGURED && editing && canDeleteItem(user?.role)
-            ? async (itemId) => {
+            ? async (itemId, listKey) => {
                 await deleteItemMutation.mutateAsync({
                   machineId: editing.id,
                   itemId,
+                  listKey,
                 });
               }
             : undefined
