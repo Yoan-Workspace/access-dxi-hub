@@ -150,16 +150,18 @@ function TicketRow({
     <li className="rounded-xl border bg-card p-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex min-w-0 flex-1 items-start gap-3">
-          <button
-            type="button"
-            onClick={() => setTasksOpen((v) => !v)}
-            className="rounded-full p-0.5 transition hover:bg-muted/70 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-            title={tasksOpen ? "Réduire les tâches" : "Afficher les tâches"}
-            aria-expanded={tasksOpen}
-            aria-label={tasksOpen ? "Réduire les tâches" : "Afficher les tâches"}
-          >
-            <ProgressRing items={checklist} />
-          </button>
+          {checklist.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setTasksOpen((v) => !v)}
+              className="rounded-full p-0.5 transition hover:bg-muted/70 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+              title={tasksOpen ? "Réduire les tâches" : "Afficher les tâches"}
+              aria-expanded={tasksOpen}
+              aria-label={tasksOpen ? "Réduire les tâches" : "Afficher les tâches"}
+            >
+              <ProgressRing items={checklist} />
+            </button>
+          )}
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
               <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
@@ -180,7 +182,14 @@ function TicketRow({
               </span>
               <ProgressStatusBadge items={checklist} />
             </div>
-            <p className="mt-2 text-sm whitespace-pre-wrap">{ticket.comment}</p>
+            <p
+              className={cn(
+                "mt-2 text-sm whitespace-pre-wrap",
+                ticket.status === "closed" && "text-muted-foreground line-through opacity-70",
+              )}
+            >
+              {ticket.comment}
+            </p>
             <p className="mt-2 text-[11px] text-muted-foreground">
               Par {ticket.createdByName} · {fmtDate(ticket.createdAt)}
               {ticket.closedAt && ` · Fermé le ${fmtDate(ticket.closedAt)}`}
@@ -189,16 +198,6 @@ function TicketRow({
         </div>
 
         <div className="flex flex-wrap gap-2">
-          {editable && ticket.category !== "amelioration" && (
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => void saveCategory("amelioration")}
-              disabled={saving}
-            >
-              Passer en Improvement
-            </Button>
-          )}
           {editable && (
             <>
               <Button

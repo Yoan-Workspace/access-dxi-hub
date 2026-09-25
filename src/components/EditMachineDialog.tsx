@@ -869,18 +869,20 @@ function TodoEditor({
                     it.completed && "line-through",
                   )}
                 />
-                <button
-                  type="button"
-                  onClick={() =>
-                    setOpenTasks((current) => ({ ...current, [itemKey]: !tasksOpen }))
-                  }
-                  className="rounded-full p-0.5 transition hover:bg-muted/70 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                  title={tasksOpen ? "Réduire les tâches" : "Afficher les tâches"}
-                  aria-expanded={tasksOpen}
-                  aria-label={tasksOpen ? "Réduire les tâches" : "Afficher les tâches"}
-                >
-                  <ProgressRing items={it.checklist} size={34} strokeWidth={3} />
-                </button>
+                {(it.checklist?.length ?? 0) > 0 && (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setOpenTasks((current) => ({ ...current, [itemKey]: !tasksOpen }))
+                    }
+                    className="rounded-full p-0.5 transition hover:bg-muted/70 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                    title={tasksOpen ? "Réduire les tâches" : "Afficher les tâches"}
+                    aria-expanded={tasksOpen}
+                    aria-label={tasksOpen ? "Réduire les tâches" : "Afficher les tâches"}
+                  >
+                    <ProgressRing items={it.checklist} size={34} strokeWidth={3} />
+                  </button>
+                )}
                 {it.ticketId != null && (
                   <span
                     className="shrink-0 text-[10px] font-medium text-muted-foreground"
