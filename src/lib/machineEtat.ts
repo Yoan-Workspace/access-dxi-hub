@@ -7,7 +7,7 @@ export const STATUS_LABELS: Record<MachineStatus, string> = {
 };
 
 export function hasOpenProblems(machine: Machine): boolean {
-  return (machine.problems ?? []).some((item) => !item.completed);
+  return (machine.problems ?? []).some((item) => !item.archived && !item.completed);
 }
 
 /** État affiché / filtré : un problème ouvert compte comme « Problème ». */

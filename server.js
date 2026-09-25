@@ -323,7 +323,10 @@ function mergeTodoItem(base, ours, theirs) {
   const winner = newerRecord(ours, theirs);
   return {
     ...winner,
-    completed: Boolean(winner.completed),
+    completed: Boolean(winner.completed || ours.completed || theirs.completed),
+    archived: Boolean(winner.archived || ours.archived || theirs.archived),
+    archivedAt: winner.archivedAt || ours.archivedAt || theirs.archivedAt,
+    createdAt: winner.createdAt || ours.createdAt || theirs.createdAt,
     checklist: mergeChecklists(base?.checklist, ours.checklist, theirs.checklist),
   };
 }
@@ -1173,6 +1176,47 @@ function ticketLinkedOnMachine(machine, ticketId) {
   return Boolean(findItemByTicketId(machine, ticketId));
 }
 
+function sameTodoIdentity(a, b) {
+  if (a?.ticketId != null && b?.ticketId != null) {
+    return Number(a.ticketId) === Number(b.ticketId);
+  }
+  if (a?.id != null && b?.id != null) {
+    return Number(a.id) === Number(b.id);
+  }
+  return false;
+}
+
+/** Empêche un PUT machine d'écraser ou d'oublier les lignes archivées. */
+function preserveArchivedItems(previous, machine) {
+  if (!previous || !machine) return;
+  for (const key of ITEM_LIST_KEYS) {
+    const prevList = Array.isArray(previous[key]) ? previous[key] : [];
+    if (!Array.isArray(machine[key])) machine[key] = [];
+    for (const item of prevList) {
+      if (!item?.archived) continue;
+      const exists = machine[key].some((entry) => sameTodoIdentity(entry, item));
+      if (!exists) machine[key].push({ ...item });
+    }
+  }
+}
+
+function applyArchivePermissions(previous, machine, isAdmin) {
+  if (isAdmin || !previous) return;
+  for (const key of ITEM_LIST_KEYS) {
+    const prevList = Array.isArray(previous[key]) ? previous[key] : [];
+    for (const item of machine[key] || []) {
+      const prev = prevList.find((entry) => sameTodoIdentity(entry, item));
+      if (prev?.archived) {
+        item.archived = true;
+        if (prev.archivedAt) item.archivedAt = prev.archivedAt;
+      } else {
+        delete item.archived;
+        delete item.archivedAt;
+      }
+    }
+  }
+}
+
 function moveTicketToCategory(machine, ticket, fromCategory) {
   const dest = machineListForCategory(machine, ticket.category);
   if (!dest) return null;
@@ -1272,13 +1316,14 @@ function addTicketToMachineCategory(machine, category, text, ticket) {
 
   if (item) {
     item.text = text;
-    if (item.completed) {
+    if (item.completed && !item.archived) {
       item.completed = false;
       delete item.completedDate;
     }
     if (ticket) bindTicketAndItem(machine, ticket, item);
     else ensureItemId(machine, item);
     if (ticket?.checklist) item.checklist = normalizeChecklist(ticket.checklist);
+    if (ticket?.createdAt && !item.createdAt) item.createdAt = ticket.createdAt;
     return item;
   }
 
@@ -1286,6 +1331,7 @@ function addTicketToMachineCategory(machine, category, text, ticket) {
     id: itemId ?? nextMachineItemId(machine),
     text,
     completed: false,
+    createdAt: ticket?.createdAt || new Date().toISOString().slice(0, 19),
   };
   if (ticket?.checklist) item.checklist = normalizeChecklist(ticket.checklist);
   list.push(item);
@@ -1539,7 +1585,7 @@ function syncMachineLinkedTickets(data, previous, machine, user) {
           user.displayName,
         );
         if (closedTicket) closed.push({ ticket: closedTicket, machine });
-      } else if (!item.completed && ticket.status === "closed") {
+      } else if (!item.completed && !item.archived && ticket.status === "closed") {
         ticket.status = "open";
         delete ticket.closedAt;
         delete ticket.closedBy;
@@ -2654,6 +2700,89 @@ app.put(
   },
 );
 
+app.put(
+  "/api/machines/:id/items/:itemId/archive",
+  authMiddleware,
+  requireRole("admin"),
+  (req, res) => {
+    const id = Number(req.params.id);
+    const itemId = Number(req.params.itemId);
+    let payload;
+    try {
+      payload = updateDb((data) => {
+        const machine = findMachine(data, id);
+        if (!machine) {
+          throw new DbAbort(404, "Machine introuvable");
+        }
+
+        const found = findMachineItemById(machine, itemId);
+        if (!found) {
+          throw new DbAbort(404, "Élément introuvable");
+        }
+        if (!found.item.completed) {
+          throw new DbAbort(400, "Seule une action terminée peut être archivée");
+        }
+
+        const now = new Date().toISOString().slice(0, 19);
+        found.item.archived = true;
+        found.item.archivedAt = now;
+        if (!found.item.createdAt) found.item.createdAt = now;
+        return { machine };
+      }).result;
+    } catch (err) {
+      if (sendDbError(res, err)) return;
+      throw err;
+    }
+
+    notifyClients();
+    res.json(payload);
+  },
+);
+
+app.delete(
+  "/api/machines/:id/items/:itemId",
+  authMiddleware,
+  requireRole("admin"),
+  (req, res) => {
+    const id = Number(req.params.id);
+    const itemId = Number(req.params.itemId);
+    let payload;
+    try {
+      payload = updateDb((data) => {
+        const machine = findMachine(data, id);
+        if (!machine) {
+          throw new DbAbort(404, "Machine introuvable");
+        }
+
+        const found = findMachineItemById(machine, itemId);
+        if (!found) {
+          throw new DbAbort(404, "Élément introuvable");
+        }
+
+        const ticketId =
+          found.item.ticketId != null ? Number(found.item.ticketId) : null;
+        machine[found.key] = machine[found.key].filter(
+          (entry) => Number(entry.id) !== itemId,
+        );
+
+        if (ticketId != null) {
+          data.tickets = data.tickets.filter(
+            (ticket) => Number(ticket.id) !== ticketId,
+          );
+        }
+
+        return { machine, ticketId };
+      }).result;
+    } catch (err) {
+      if (sendDbError(res, err)) return;
+      throw err;
+    }
+
+    notifyClients();
+    res.json(payload);
+  },
+);
+
 function sendLiveStatusSnapshot(req, res) {
   if (String(req.query.refresh) === "true") {
     return res.json(requestLiveStatusRefresh());
@@ -2728,6 +2857,8 @@ app.put(
         const previous = data.machines[index];
         const machine = { ...req.body, id };
         ensureAllMachineItemIds(machine);
+        preserveArchivedItems(previous, machine);
+        applyArchivePermissions(previous, machine, req.user?.role === "admin");
         const { created: createdTickets } = syncMachineLinkedTickets(
           data,
           previous,

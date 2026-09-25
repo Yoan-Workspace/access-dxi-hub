@@ -40,6 +40,7 @@ export function overlayLinkedLists(current: Machine, machine: Machine): Machine 
     flags: machine.flags ?? current.flags,
     problems: machine.problems ?? current.problems,
     improvements: machine.improvements ?? current.improvements,
+    repairs: machine.repairs ?? current.repairs,
   };
 }
 
@@ -102,6 +103,7 @@ export function applyTicketsToMachine(
         completed: ticket.status === "closed",
         ticketId: ticket.id,
         checklist: ticket.checklist ?? [],
+        createdAt: ticket.createdAt,
         ...(ticket.status === "closed" ? { completedDate: todayFr() } : {}),
       });
       continue;
@@ -109,6 +111,7 @@ export function applyTicketsToMachine(
 
     item.ticketId = ticket.id;
     if (ticket.itemId != null && item.id == null) item.id = ticket.itemId;
+    if (!item.createdAt && ticket.createdAt) item.createdAt = ticket.createdAt;
     const ticketList = ticket.checklist ?? [];
     const itemList = item.checklist ?? [];
     if (!sameChecklist(itemList, ticketList) && !(ticketList.length === 0 && itemList.length > 0)) {
@@ -122,7 +125,7 @@ export function applyTicketsToMachine(
       item.completedDate = item.completedDate ?? todayFr();
     }
 
-    if (ticket.status === "open" && item.completed) {
+    if (ticket.status === "open" && item.completed && !item.archived) {
       item.completed = false;
       delete item.completedDate;
     }
@@ -250,6 +253,7 @@ export function mergeNewTicketItems(machine: Machine, tickets: Ticket[]): Machin
         completed: ticket.status === "closed",
         ticketId: ticket.id,
         checklist: ticket.checklist ?? [],
+        createdAt: ticket.createdAt,
         ...(ticket.status === "closed" ? { completedDate: todayFr() } : {}),
       },
     ];

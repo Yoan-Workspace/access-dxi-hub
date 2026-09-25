@@ -1,9 +1,19 @@
 import { useEffect, useState } from "react";
-import { Plus, Trash2, Check, Ticket as TicketIcon } from "lucide-react";
+import { Archive, Plus, Trash2, Check, Ticket as TicketIcon } from "lucide-react";
 import type { ChecklistItem, Machine, Ticket, TicketCategory, TodoItem } from "@/lib/types";
 import { machineKind } from "@/lib/types";
 import { getMachineWave, inferSerialFromName } from "@/lib/machineWave";
+import {
+  ARCHIVE_LIST_KEYS,
+  archivedItems,
+  liveItems,
+  nowIsoStamp,
+  visibleTickets,
+  withArchivedKept,
+  type ArchiveListKey,
+} from "@/lib/archives";
 import { applyTicketsToMachine, linkTicketIdsPreserveText, mergeNewTicketItems, relocateLinkedItems, syncChecklistsFromTickets } from "@/lib/ticketSync";
+import { MachineArchivesPanel } from "@/components/MachineArchivesPanel";
 import { MachineTicketsPanel } from "@/components/MachineTicketsPanel";
 import { ItemChecklist } from "@/components/ItemChecklist";
 import { ProgressRing, ProgressStatusBadge } from "@/components/ProgressRing";
@@ -43,7 +53,8 @@ export type EditMachineTab =
   | "problems"
   | "repairs"
   | "improvements"
-  | "tickets";
+  | "tickets"
+  | "archives";
 
 interface Props {
   machine: Machine | null;
@@ -71,6 +82,10 @@ interface Props {
     checklist: ChecklistItem[],
   ) => Promise<void>;
   onOpenCreateTicket?: () => void;
+  onArchiveItem?: (itemId: number) => Promise<void>;
+  onDeleteItem?: (itemId: number) => Promise<void>;
+  canArchive?: boolean;
+  canDeleteItems?: boolean;
 }
 
 const months = [
@@ -128,6 +143,10 @@ export function EditMachineDialog({
   onCreateTicket,
   onUpdateItemChecklist,
   onOpenCreateTicket,
+  onArchiveItem,
+  onDeleteItem,
+  canArchive = false,
+  canDeleteItems = false,
 }: Props) {
   const [draft, setDraft] = useState<Machine | null>(null);
   const [tab, setTab] = useState<EditMachineTab>(initialTab);
@@ -136,6 +155,12 @@ export function EditMachineDialog({
   const [pendingLinked, setPendingLinked] = useState(0);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [lastDateEdited, setLastDateEdited] = useState(false);
+  const [itemAction, setItemAction] = useState<{
+    type: "archive" | "delete";
+    listKey: ArchiveListKey;
+    item: TodoItem;
+  } | null>(null);
+  const [itemActionBusy, setItemActionBusy] = useState(false);
 
   useEffect(() => {
     if (!open || !machine) {
@@ -143,6 +168,7 @@ export function EditMachineDialog({
       setConfirmDelete(false);
       setLastDateEdited(false);
       setPendingLinked(0);
+      setItemAction(null);
       return;
     }
 
@@ -150,6 +176,7 @@ export function EditMachineDialog({
     setConfirmDelete(false);
     setLastDateEdited(false);
     setPendingLinked(0);
+    setItemAction(null);
     // Snapshot at open: do not resync from parent while the user is typing.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, machine?.id]);
@@ -173,6 +200,19 @@ export function EditMachineDialog({
 
   const kind = machineKind(draft);
   const nextPm = draft.pmRef ? getNextPmInfo(draft.pmRef) : null;
+  const archiveCount = ARCHIVE_LIST_KEYS.reduce(
+    (count, key) => count + archivedItems(draft[key]).length,
+    0,
+  );
+  const activeTickets = visibleTickets(tickets, draft);
+  const nextItemId = () =>
+    ARCHIVE_LIST_KEYS.reduce((max, key) => {
+      for (const item of draft[key] ?? []) {
+        const id = Number(item.id) || 0;
+        if (id > max) max = id;
+      }
+      return max;
+    }, 0) + 1;
 
   const set = <K extends keyof Machine>(k: K, v: Machine[K]) =>
     setDraft((d) => (d ? { ...d, [k]: v } : d));
@@ -196,16 +236,6 @@ export function EditMachineDialog({
     }
   };
 
-  const deleteLinkedTicket = async (ticketId: number) => {
-    if (!onDeleteTicket) return;
-    setPendingLinked((n) => n + 1);
-    try {
-      await onDeleteTicket(ticketId);
-    } finally {
-      setPendingLinked((n) => Math.max(0, n - 1));
-    }
-  };
-
   const toggleLinkedTicket = async (ticketId: number, completed: boolean) => {
     if (!onUpdateTicket) return;
     setPendingLinked((n) => n + 1);
@@ -224,13 +254,54 @@ export function EditMachineDialog({
       return;
     }
     if (item.id == null || !onUpdateItemChecklist || !machine) return;
-    const persisted = (
-      ["flags", "problems", "improvements", "repairs"] as const
-    ).some((key) =>
+    const persisted = ARCHIVE_LIST_KEYS.some((key) =>
       (machine[key] ?? []).some((entry) => Number(entry.id) === Number(item.id)),
     );
     if (!persisted) return;
     await onUpdateItemChecklist(item.id, checklist);
+  };
+
+  const setList = (key: ArchiveListKey, items: TodoItem[]) =>
+    setDraft((d) => (d ? { ...d, [key]: items } : d));
+
+  const applyItemAction = async () => {
+    if (!itemAction || !draft) return;
+    const { type, listKey, item } = itemAction;
+    const list = draft[listKey] ?? [];
+    setItemActionBusy(true);
+    try {
+      if (type === "archive") {
+        const next = list.map((entry) =>
+          entry === item ||
+          (item.id != null && Number(entry.id) === Number(item.id)) ||
+          (item.ticketId != null && Number(entry.ticketId) === Number(item.ticketId))
+            ? { ...entry, archived: true, archivedAt: nowIsoStamp(), completed: true }
+            : entry,
+        );
+        setList(listKey, next);
+        if (item.id != null && onArchiveItem && (machine?.[listKey] ?? []).some((entry) => Number(entry.id) === Number(item.id))) {
+          await onArchiveItem(item.id);
+        }
+      } else {
+        const next = list.filter(
+          (entry) =>
+            entry !== item &&
+            !(item.id != null && Number(entry.id) === Number(item.id)) &&
+            !(item.ticketId != null && Number(entry.ticketId) === Number(item.ticketId)),
+        );
+        setList(listKey, next);
+        if (item.id != null && onDeleteItem && (machine?.[listKey] ?? []).some((entry) => Number(entry.id) === Number(item.id))) {
+          await onDeleteItem(item.id);
+        } else if (item.ticketId != null && onDeleteTicket) {
+          await onDeleteTicket(item.ticketId);
+        }
+      }
+      setItemAction(null);
+    } catch {
+      setList(listKey, list);
+    } finally {
+      setItemActionBusy(false);
+    }
   };
 
   const setPmRef = (patch: Partial<NonNullable<Machine["pmRef"]>>) => {
@@ -292,7 +363,7 @@ const remove = async () => {
   return (
     <>
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] max-w-3xl overflow-hidden p-0">
+      <DialogContent className="max-h-[90vh] max-w-4xl overflow-hidden p-0">
         <DialogHeader className="border-b px-6 py-4">
           <DialogTitle className="flex items-center gap-2 text-base">
             <span className="text-muted-foreground">{readOnly ? "Consultation —" : "Édition —"}</span>
@@ -305,13 +376,21 @@ const remove = async () => {
           onValueChange={(v) => setTab(v as EditMachineTab)}
           className="flex max-h-[70vh] flex-col"
         >
-          <TabsList className="mx-6 mt-4 w-fit">
+          <TabsList className="mx-6 mt-4 flex h-auto min-h-9 w-[calc(100%-3rem)] flex-wrap justify-start gap-1">
             <TabsTrigger value="general">Général</TabsTrigger>
             <TabsTrigger value="flags">Flags</TabsTrigger>
             <TabsTrigger value="problems">Problèmes</TabsTrigger>
             <TabsTrigger value="repairs">Réparations</TabsTrigger>
             <TabsTrigger value="improvements">Improvements</TabsTrigger>
             <TabsTrigger value="tickets">Tickets</TabsTrigger>
+            <TabsTrigger value="archives" className="gap-1.5">
+              Archives
+              {archiveCount > 0 && (
+                <span className="rounded-full bg-muted-foreground/15 px-1.5 py-px text-[10px] font-semibold tabular-nums">
+                  {archiveCount}
+                </span>
+              )}
+            </TabsTrigger>
           </TabsList>
 
           <div className="flex-1 overflow-y-auto px-6 pb-6 pt-4">
@@ -569,54 +648,72 @@ const remove = async () => {
 
             <TabsContent value="flags" className="mt-0">
               <TodoEditor
-                items={draft.flags}
-                onChange={(items) => set("flags", items)}
+                items={liveItems(draft.flags)}
+                onChange={(items) => set("flags", withArchivedKept(items, draft.flags))}
                 placeholder="Nouveau flag…"
                 readOnly={readOnly}
                 createsTicket
+                canArchive={canArchive}
+                canDeleteItems={canDeleteItems}
+                onArchive={(item) => setItemAction({ type: "archive", listKey: "flags", item })}
+                onDeleteItem={(item) => setItemAction({ type: "delete", listKey: "flags", item })}
                 onCreateLinked={
                   onCreateTicket
                     ? (text, itemId) => createLinkedTicket("flag", text, itemId)
                     : undefined
                 }
-                onDeleteLinked={onDeleteTicket ? deleteLinkedTicket : undefined}
                 onToggleLinked={onUpdateTicket ? toggleLinkedTicket : undefined}
                 onPersistChecklist={persistItemChecklist}
+                nextItemId={nextItemId}
               />
             </TabsContent>
             <TabsContent value="problems" className="mt-0">
               <TodoEditor
-                items={draft.problems}
-                onChange={(items) => set("problems", items)}
+                items={liveItems(draft.problems)}
+                onChange={(items) => set("problems", withArchivedKept(items, draft.problems))}
                 placeholder="Nouveau problème…"
                 readOnly={readOnly}
                 createsTicket
+                canArchive={canArchive}
+                canDeleteItems={canDeleteItems}
+                onArchive={(item) => setItemAction({ type: "archive", listKey: "problems", item })}
+                onDeleteItem={(item) => setItemAction({ type: "delete", listKey: "problems", item })}
                 onCreateLinked={
                   onCreateTicket
                     ? (text, itemId) => createLinkedTicket("probleme", text, itemId)
                     : undefined
                 }
-                onDeleteLinked={onDeleteTicket ? deleteLinkedTicket : undefined}
                 onToggleLinked={onUpdateTicket ? toggleLinkedTicket : undefined}
                 onPersistChecklist={persistItemChecklist}
+                nextItemId={nextItemId}
               />
             </TabsContent>
             <TabsContent value="repairs" className="mt-0">
               <TodoEditor
-                items={draft.repairs}
-                onChange={(items) => set("repairs", items)}
+                items={liveItems(draft.repairs)}
+                onChange={(items) => set("repairs", withArchivedKept(items, draft.repairs))}
                 placeholder="Nouvelle réparation…"
                 readOnly={readOnly}
+                canArchive={canArchive}
+                canDeleteItems={canDeleteItems}
+                onArchive={(item) => setItemAction({ type: "archive", listKey: "repairs", item })}
+                onDeleteItem={(item) => setItemAction({ type: "delete", listKey: "repairs", item })}
                 onPersistChecklist={persistItemChecklist}
+                nextItemId={nextItemId}
               />
             </TabsContent>
             <TabsContent value="improvements" className="mt-0">
               <TodoEditor
-                items={draft.improvements}
-                onChange={(items) => set("improvements", items)}
+                items={liveItems(draft.improvements)}
+                onChange={(items) => set("improvements", withArchivedKept(items, draft.improvements))}
                 placeholder="Nouvelle amélioration…"
                 readOnly={readOnly}
+                canArchive={canArchive}
+                canDeleteItems={canDeleteItems}
+                onArchive={(item) => setItemAction({ type: "archive", listKey: "improvements", item })}
+                onDeleteItem={(item) => setItemAction({ type: "delete", listKey: "improvements", item })}
                 onPersistChecklist={persistItemChecklist}
+                nextItemId={nextItemId}
               />
             </TabsContent>
             <TabsContent value="tickets" className="mt-0 space-y-4">
@@ -630,17 +727,25 @@ const remove = async () => {
               )}
               {onUpdateTicket && onDeleteTicket ? (
                 <MachineTicketsPanel
-                  tickets={tickets}
+                  tickets={activeTickets}
                   onUpdate={onUpdateTicket}
                   onDelete={onDeleteTicket}
                 />
               ) : (
                 <MachineTicketsPanel
-                  tickets={tickets}
+                  tickets={activeTickets}
                   onUpdate={async () => {}}
                   onDelete={async () => {}}
                 />
               )}
+            </TabsContent>
+            <TabsContent value="archives" className="mt-0">
+              <MachineArchivesPanel
+                machine={draft}
+                tickets={tickets}
+                canDelete={canDeleteItems}
+                onDelete={(item, listKey) => setItemAction({ type: "delete", listKey, item })}
+              />
             </TabsContent>
           </div>
         </Tabs>
@@ -708,6 +813,51 @@ const remove = async () => {
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>
+    <AlertDialog
+      open={itemAction != null}
+      onOpenChange={(open) => {
+        if (!open && !itemActionBusy) setItemAction(null);
+      }}
+    >
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>
+            {itemAction?.type === "archive" ? "Archiver cette action ?" : "Supprimer définitivement ?"}
+          </AlertDialogTitle>
+          <AlertDialogDescription>
+            {itemAction?.type === "archive"
+              ? "Elle quittera la liste active et n’apparaîtra plus que dans Archives, avec l’historique du ticket s’il existe. Cette action n’est pas réversible."
+              : "L’action et le ticket associé seront définitivement retirés. Cette action n’est pas réversible."}
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        {itemAction?.item.text && (
+          <p className="rounded-lg border bg-muted/40 px-3 py-2 text-sm">{itemAction.item.text}</p>
+        )}
+        <AlertDialogFooter>
+          <AlertDialogCancel disabled={itemActionBusy}>Annuler</AlertDialogCancel>
+          <AlertDialogAction
+            onClick={(e) => {
+              e.preventDefault();
+              void applyItemAction();
+            }}
+            disabled={itemActionBusy}
+            className={
+              itemAction?.type === "delete"
+                ? "bg-destructive text-white hover:bg-destructive/90"
+                : undefined
+            }
+          >
+            {itemActionBusy
+              ? itemAction?.type === "archive"
+                ? "Archivage…"
+                : "Suppression…"
+              : itemAction?.type === "archive"
+                ? "Archiver"
+                : "Supprimer définitivement"}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
     </>
   );
 }
@@ -727,8 +877,12 @@ function TodoEditor({
   placeholder,
   readOnly = false,
   createsTicket = false,
+  canArchive = false,
+  canDeleteItems = false,
+  nextItemId,
+  onArchive,
+  onDeleteItem,
   onCreateLinked,
-  onDeleteLinked,
   onToggleLinked,
   onPersistChecklist,
 }: {
@@ -737,8 +891,12 @@ function TodoEditor({
   placeholder: string;
   readOnly?: boolean;
   createsTicket?: boolean;
+  canArchive?: boolean;
+  canDeleteItems?: boolean;
+  nextItemId?: () => number;
+  onArchive?: (item: TodoItem) => void;
+  onDeleteItem?: (item: TodoItem) => void;
   onCreateLinked?: (text: string, itemId?: number) => Promise<void>;
-  onDeleteLinked?: (ticketId: number) => Promise<void>;
   onToggleLinked?: (ticketId: number, completed: boolean) => Promise<void>;
   onPersistChecklist?: (item: TodoItem, checklist: ChecklistItem[]) => Promise<void>;
 }) {
@@ -750,9 +908,10 @@ function TodoEditor({
     const t = text.trim();
     if (!t || busy) return;
     const itemId =
+      nextItemId?.() ??
       items.reduce((max, it) => Math.max(max, Number(it.id) || 0), 0) + 1;
     setText("");
-    onChange([...items, { id: itemId, text: t, completed: false }]);
+    onChange([...items, { id: itemId, text: t, completed: false, createdAt: nowIsoStamp() }]);
     if (!onCreateLinked) return;
     setBusy(true);
     try {
@@ -782,13 +941,6 @@ function TodoEditor({
     }
   };
 
-  const remove = (i: number) => {
-    const item = items[i];
-    onChange(items.filter((_, idx) => idx !== i));
-    if (item?.ticketId != null && onDeleteLinked) {
-      void onDeleteLinked(item.ticketId);
-    }
-  };
   const updateText = (i: number, t: string) =>
     onChange(items.map((it, idx) => (idx === i ? { ...it, text: t } : it)));
 
@@ -897,15 +1049,32 @@ function TodoEditor({
                     {it.completedDate}
                   </span>
                 )}
-                {!readOnly && (
-                <button
-                  type="button"
-                  onClick={() => remove(i)}
-                  className="rounded-md p-1 text-muted-foreground opacity-0 transition hover:bg-destructive/10 hover:text-destructive group-hover:opacity-100"
-                  aria-label="Supprimer"
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                </button>
+                {it.completed && !readOnly && (canArchive || canDeleteItems) && (
+                  <div className="flex shrink-0 flex-wrap gap-1.5">
+                    {canArchive && (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={() => onArchive?.(it)}
+                      >
+                        <Archive className="h-3.5 w-3.5" />
+                        Archiver
+                      </Button>
+                    )}
+                    {canDeleteItems && (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="text-destructive hover:text-destructive"
+                        onClick={() => onDeleteItem?.(it)}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                        Supprimer
+                      </Button>
+                    )}
+                  </div>
                 )}
               </div>
               <div className="mt-1">

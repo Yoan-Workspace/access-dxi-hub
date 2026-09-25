@@ -29,10 +29,12 @@ import {
 } from "@/components/MachineFilters";
 import {
   API_CONFIGURED,
+  archiveMachineItem,
   createMachine,
   createTicket,
   createUser,
   deleteMachine,
+  deleteMachineItem,
   deleteTicket,
   deleteUser,
   fetchMachines,
@@ -57,6 +59,8 @@ import {
   canCreateMachine,
   canCreateTicket,
   canDeleteMachine,
+  canArchiveItem,
+  canDeleteItem,
   canEditMachine,
   canEditTicket,
   canManageUsers,
@@ -67,6 +71,7 @@ import { useTheme } from "@/lib/theme";
 import { FALCON_MP_LAB_DASHBOARD_URL } from "@/lib/labManager";
 import { afterUiSettled } from "@/lib/ui";
 import { applyTicketsToMachine, applyTicketsToMachines, overlayLinkedLists, syncChecklistsFromTickets } from "@/lib/ticketSync";
+import { liveItems, visibleTickets } from "@/lib/archives";
 import { effectiveStatus, hasOpenProblems } from "@/lib/machineEtat";
 import { toast } from "sonner";
 import { DxiWaveNote } from "@/components/DxiWaveNote";
@@ -612,6 +617,47 @@ function HomePage() {
     onError: (e) => toast.error(`Échec des tâches : ${(e as Error).message}`),
   });
 
+  const applyMachineUpdate = (machine: Machine, removedTicketId?: number | null) => {
+    qc.setQueryData<Machine[]>(["machines"], (prev) =>
+      prev?.map((m) => (Number(m.id) === Number(machine.id) ? machine : m)) ?? prev,
+    );
+    if (removedTicketId != null) {
+      qc.setQueryData<Ticket[]>(["tickets"], (prev) =>
+        (prev ?? []).filter((t) => Number(t.id) !== Number(removedTicketId)),
+      );
+    }
+    setEditing((current) => {
+      if (!current || Number(current.id) !== Number(machine.id)) return current;
+      return overlayLinkedLists(current, machine);
+    });
+  };
+
+  const archiveItemMutation = useMutation({
+    mutationFn: ({ machineId, itemId }: { machineId: number; itemId: number }) =>
+      archiveMachineItem(machineId, itemId),
+    onMutate: markLocalWrite,
+    onSuccess: ({ machine }) => {
+      applyMachineUpdate(machine);
+      toast.success("Action archivée");
+    },
+    onError: (e) => toast.error(`Échec de l'archive : ${(e as Error).message}`),
+  });
+
+  const deleteItemMutation = useMutation({
+    mutationFn: ({ machineId, itemId }: { machineId: number; itemId: number }) =>
+      deleteMachineItem(machineId, itemId),
+    onMutate: markLocalWrite,
+    onSuccess: ({ machine, ticketId }) => {
+      if (machine) applyMachineUpdate(machine, ticketId);
+      else {
+        void qc.invalidateQueries({ queryKey: ["machines"] });
+        void qc.invalidateQueries({ queryKey: ["tickets"] });
+      }
+      toast.success("Action supprimée");
+    },
+    onError: (e) => toast.error(`Échec de la suppression : ${(e as Error).message}`),
+  });
+
   const refreshUsers = async () => {
     if (!canManageUsers(user?.role)) return;
     setUsers(await fetchUsers());
@@ -623,8 +669,8 @@ function HomePage() {
   };
 
   const stats = useMemo(() => {
-    const pending = (items: { completed: boolean }[]) =>
-      items.some((x) => !x.completed);
+    const pending = (items: { completed: boolean; archived?: boolean }[]) =>
+      items.some((x) => !x.archived && !x.completed);
 
     return {
       total: syncedMachines.length,
@@ -665,10 +711,10 @@ function HomePage() {
       }
       if (!matchesPmFilter(m, filters.pm)) return false;
 
-      if (filters.track === "flags" && !(m.flags ?? []).some((f) => !f.completed)) {
+      if (filters.track === "flags" && !liveItems(m.flags).some((f) => !f.completed)) {
         return false;
       }
-      if (filters.track === "improve" && !(m.improvements ?? []).some((f) => !f.completed)) {
+      if (filters.track === "improve" && !liveItems(m.improvements).some((f) => !f.completed)) {
         return false;
       }
       if (filters.track === "asd-pending" && m.asdStatus === "valid") return false;
@@ -758,7 +804,6 @@ function HomePage() {
             )}
             {canCreateTicket(user?.role) && API_CONFIGURED && (
               <Button
-                variant="outline"
                 onClick={() => {
                   setTicketMachineId(undefined);
                   setCreatingTicket(true);
@@ -770,6 +815,7 @@ function HomePage() {
             )}
             {canCreateMachine(user?.role) && (
             <Button
+              variant="outline"
               onClick={() => setAdding(true)}
               disabled={!API_CONFIGURED}
               title={
@@ -859,14 +905,16 @@ function HomePage() {
           ) : (
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
               {filtered.map((m) => {
-                const ticketStats = ticketsByMachine.get(m.id);
+                const visible = visibleTickets(ticketsByMachine.get(m.id)?.items ?? [], m);
+                const ticketsOpen = visible.filter((ticket) => ticket.status === "open").length;
+                const ticketsClosed = visible.filter((ticket) => ticket.status === "closed").length;
                 return (
                   <MachineCard
                     key={m.id}
                     machine={m}
-                    ticketsOpen={ticketStats?.open ?? 0}
-                    ticketsClosed={ticketStats?.closed ?? 0}
-                    tickets={ticketStats?.items ?? []}
+                    ticketsOpen={ticketsOpen}
+                    ticketsClosed={ticketsClosed}
+                    tickets={visible}
                     liveColor={liveStatuses[m.id]?.color}
                     onEdit={(tab) => openEdit(m, tab)}
                   />
@@ -931,6 +979,28 @@ function HomePage() {
             ? () => {
                 if (editing) setTicketMachineId(editing.id);
                 setCreatingTicket(true);
+              }
+            : undefined
+        }
+        canArchive={canArchiveItem(user?.role)}
+        canDeleteItems={canDeleteItem(user?.role)}
+        onArchiveItem={
+          API_CONFIGURED && editing && canArchiveItem(user?.role)
+            ? async (itemId) => {
+                await archiveItemMutation.mutateAsync({
+                  machineId: editing.id,
+                  itemId,
+                });
+              }
+            : undefined
+        }
+        onDeleteItem={
+          API_CONFIGURED && editing && canDeleteItem(user?.role)
+            ? async (itemId) => {
+                await deleteItemMutation.mutateAsync({
+                  machineId: editing.id,
+                  itemId,
+                });
               }
             : undefined
         }

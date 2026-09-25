@@ -36,12 +36,12 @@ const statusStyle: Record<Machine["status"], { color: string; ring: string }> = 
   },
 };
 
-function pendingCount(items: { completed: boolean }[] | undefined) {
-  return (items ?? []).filter((i) => !i.completed).length;
+function pendingCount(items: { completed: boolean; archived?: boolean }[] | undefined) {
+  return (items ?? []).filter((i) => !i.archived && !i.completed).length;
 }
 
-function doneCount(items: { completed: boolean }[] | undefined) {
-  return (items ?? []).filter((i) => i.completed).length;
+function doneCount(items: { completed: boolean; archived?: boolean }[] | undefined) {
+  return (items ?? []).filter((i) => !i.archived && i.completed).length;
 }
 
 function fmtDate(iso: string) {
@@ -319,7 +319,7 @@ export function MachineCard({
           done={flagsDone}
           label="Flags"
           tone="warning"
-          tasks={(machine.flags ?? []).flatMap((item) => item.checklist ?? [])}
+          tasks={(machine.flags ?? []).filter((item) => !item.archived).flatMap((item) => item.checklist ?? [])}
           onClick={() => onEdit("flags")}
         />
 
@@ -329,7 +329,7 @@ export function MachineCard({
           done={probsDone}
           label="Probl."
           tone="danger"
-          tasks={(machine.problems ?? []).flatMap((item) => item.checklist ?? [])}
+          tasks={(machine.problems ?? []).filter((item) => !item.archived).flatMap((item) => item.checklist ?? [])}
           onClick={() => onEdit("problems")}
         />
 
@@ -339,7 +339,7 @@ export function MachineCard({
           done={repairsDone}
           label="Répar."
           tone="warning"
-          tasks={(machine.repairs ?? []).flatMap((item) => item.checklist ?? [])}
+          tasks={(machine.repairs ?? []).filter((item) => !item.archived).flatMap((item) => item.checklist ?? [])}
           onClick={() => onEdit("repairs")}
         />
 
@@ -349,7 +349,7 @@ export function MachineCard({
           done={improvDone}
           label="Improv."
           tone="improve"
-          tasks={(machine.improvements ?? []).flatMap((item) => item.checklist ?? [])}
+          tasks={(machine.improvements ?? []).filter((item) => !item.archived).flatMap((item) => item.checklist ?? [])}
           onClick={() => onEdit("improvements")}
         />
       </div>

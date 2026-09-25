@@ -27,6 +27,11 @@ export interface TodoItem {
   ticketId?: number;
   /** Actions à cocher avant clôture */
   checklist?: ChecklistItem[];
+  /** Date de création (ISO) — filtre Archives par année */
+  createdAt?: string;
+  /** Sortie de la vue opérationnelle, consultable dans Archives */
+  archived?: boolean;
+  archivedAt?: string;
 }
 
 export interface PmRef {

@@ -212,6 +212,24 @@ export async function updateMachineItemChecklist(
   })) as { machine: Machine; ticket?: Ticket | null };
 }
 
+export async function archiveMachineItem(
+  machineId: number,
+  itemId: number,
+): Promise<{ machine: Machine }> {
+  return (await apiFetch(`/api/machines/${machineId}/items/${itemId}/archive`, {
+    method: "PUT",
+  })) as { machine: Machine };
+}
+
+export async function deleteMachineItem(
+  machineId: number,
+  itemId: number,
+): Promise<{ machine: Machine | null; ticketId?: number | null }> {
+  return (await apiFetch(`/api/machines/${machineId}/items/${itemId}`, {
+    method: "DELETE",
+  })) as { machine: Machine | null; ticketId?: number | null };
+}
+
 export async function deleteTicket(
   id: number,
 ): Promise<{ ok: boolean; machine?: Machine | null }> {
@@ -277,7 +295,7 @@ const EMPTY_LIVE_STATUS: LiveStatusSnapshot = {
 };
 
 function isLiveStatusEntry(value: unknown): value is LiveStatus {
-  return Boolean(value) && typeof value === "object" && "color" in value;
+  return Boolean(value) && typeof value === "object" && value !== null && "color" in value;
 }
 
 function deriveNextPollAt(

@@ -24,6 +24,14 @@ export function canDeleteTicket(role?: UserRole) {
   return role === "admin" || role === "technicien";
 }
 
+export function canArchiveItem(role?: UserRole) {
+  return role === "admin";
+}
+
+export function canDeleteItem(role?: UserRole) {
+  return role === "admin";
+}
+
 export function canManageUsers(role?: UserRole) {
   return role === "admin";
 }
