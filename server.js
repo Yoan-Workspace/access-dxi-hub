@@ -597,8 +597,14 @@ function migrateLiveStore() {
   acquireDataLock();
   try {
     if (!fs.existsSync(DATA_PATH)) return;
-    const live = ensureDataShape(parseDataFile());
+    // Parse brut : ensureDataShape enlève `users` et casserait l'extraction.
+    const live = parseDataFile();
+    if (!Array.isArray(live.machines)) live.machines = [];
+    if (!Array.isArray(live.tickets)) live.tickets = [];
+    if (!Array.isArray(live.history)) live.history = [];
+    if (live.revision == null) live.revision = 0;
     const { changed, report } = migrateMonolithicData(STORE, live, atomicWriteJson);
+    ensureDataShape(live);
     if (changed) {
       live.revision = (Number(live.revision) || 0) + 1;
       atomicWriteJson(DATA_PATH, live);
