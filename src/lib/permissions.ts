@@ -36,6 +36,14 @@ export function canManageUsers(role?: UserRole) {
   return role === "admin";
 }
 
+export function canConfigureTriton(role?: UserRole) {
+  return role === "admin" || role === "technicien";
+}
+
+export function canToggleTritonActive(role?: UserRole) {
+  return Boolean(role);
+}
+
 export function roleLabel(role: UserRole) {
   switch (role) {
     case "admin":

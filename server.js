@@ -571,6 +571,18 @@ function isMpMachine(machine) {
   return !machine.name.toLowerCase().startsWith("access");
 }
 
+function canConfigureTriton(role) {
+  return role === "admin" || role === "technicien";
+}
+
+function normalizeTritonFlags(machine) {
+  const tritonCapable = Boolean(machine?.tritonCapable);
+  return {
+    tritonCapable,
+    tritonActive: tritonCapable && Boolean(machine?.tritonActive),
+  };
+}
+
 function todayKey(date = new Date()) {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, "0");
@@ -2848,6 +2860,53 @@ app.get("/api/machines", authMiddleware, (req, res) => {
   }
 });
 
+app.put("/api/machines/:id/triton", authMiddleware, (req, res) => {
+  const id = Number(req.params.id);
+  const body = req.body ?? {};
+  const canConfigure = canConfigureTriton(req.user?.role);
+  let payload;
+  try {
+    payload = updateDb((data) => {
+      const index = data.machines.findIndex((m) => m.id === id);
+      if (index === -1) {
+        throw new DbAbort(404, "Machine introuvable");
+      }
+
+      const previous = data.machines[index];
+      let tritonCapable = Boolean(previous.tritonCapable);
+      let tritonActive = Boolean(previous.tritonActive);
+
+      if (Object.prototype.hasOwnProperty.call(body, "tritonCapable")) {
+        if (!canConfigure) {
+          throw new DbAbort(
+            403,
+            "Seuls les administrateurs et techniciens peuvent identifier une machine compatible Triton",
+          );
+        }
+        tritonCapable = Boolean(body.tritonCapable);
+      }
+
+      if (Object.prototype.hasOwnProperty.call(body, "tritonActive")) {
+        if (Boolean(body.tritonActive) && !tritonCapable) {
+          throw new DbAbort(400, "Cette machine n'est pas compatible Triton");
+        }
+        tritonActive = Boolean(body.tritonActive);
+      }
+
+      const flags = normalizeTritonFlags({ tritonCapable, tritonActive });
+      const machine = { ...previous, ...flags };
+      data.machines[index] = machine;
+      return { machine };
+    }).result;
+  } catch (err) {
+    if (sendDbError(res, err)) return;
+    throw err;
+  }
+
+  notifyClients();
+  res.json({ machine: payload.machine });
+});
+
 app.put(
   "/api/machines/:id",
   authMiddleware,
@@ -2863,7 +2922,7 @@ app.put(
         }
 
         const previous = data.machines[index];
-        const machine = { ...req.body, id };
+        const machine = { ...req.body, id, ...normalizeTritonFlags(previous) };
         ensureAllMachineItemIds(machine);
         preserveArchivedItems(previous, machine);
         applyArchivePermissions(previous, machine, req.user?.role === "admin");
@@ -2923,6 +2982,7 @@ app.post(
         const newMachine = {
           ...req.body,
           id: nextId(data.machines),
+          ...normalizeTritonFlags(req.body),
         };
         ensureAllMachineItemIds(newMachine);
         const { created: createdTickets } = syncMachineLinkedTickets(

@@ -126,6 +126,16 @@ export async function createMachine(machine: Omit<Machine, "id">): Promise<Machi
   })) as Machine;
 }
 
+export async function updateMachineTriton(
+  machineId: number,
+  input: { tritonCapable?: boolean; tritonActive?: boolean },
+): Promise<{ machine: Machine }> {
+  return (await apiFetch(`/api/machines/${machineId}/triton`, {
+    method: "PUT",
+    body: JSON.stringify(input),
+  })) as { machine: Machine };
+}
+
 export async function updateMachine(
   m: Machine,
 ): Promise<{ machine: Machine; createdTickets: Ticket[]; tickets: Ticket[] }> {

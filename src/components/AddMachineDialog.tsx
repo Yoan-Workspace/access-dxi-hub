@@ -18,6 +18,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 
 const months = [
@@ -62,6 +63,8 @@ function defaultDraft(kind: MachineKind): Omit<Machine, "id"> {
     ...(kind === "ACCESS"
       ? { asdStatus: "valid" as const, asdLabel: "System Check" }
       : { asdStatus: "valid" as const, monthlyMaint: "not_done" as const }),
+    tritonCapable: false,
+    tritonActive: false,
   };
 }
 
@@ -199,6 +202,19 @@ export function AddMachineDialog({ open, onOpenChange, onCreate }: Props) {
                 </SelectContent>
               </Select>
             </Field>
+          </div>
+
+          <div className="flex items-center justify-between gap-3 rounded-xl border bg-muted/40 px-3 py-2.5">
+            <span>
+              <span className="block text-sm font-medium">Compatible bidons Triton</span>
+              <span className="block text-[11px] text-muted-foreground">
+                À activer si la machine peut être branchée pour une manip Triton.
+              </span>
+            </span>
+            <Switch
+              checked={Boolean(draft.tritonCapable)}
+              onCheckedChange={(checked) => set("tritonCapable", checked)}
+            />
           </div>
 
           <p className="text-xs text-muted-foreground">

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Archive, Plus, Trash2, Check, Ticket as TicketIcon } from "lucide-react";
+import { Archive, Droplets, Plus, Trash2, Check, Ticket as TicketIcon } from "lucide-react";
 import type { ChecklistItem, Machine, Ticket, TicketCategory, TodoItem } from "@/lib/types";
 import { machineKind } from "@/lib/types";
 import { getMachineWave, inferSerialFromName } from "@/lib/machineWave";
@@ -44,6 +44,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 
@@ -86,6 +87,8 @@ interface Props {
   onDeleteItem?: (itemId: number, listKey: ArchiveListKey) => Promise<void>;
   canArchive?: boolean;
   canDeleteItems?: boolean;
+  canConfigureTriton?: boolean;
+  onUpdateTriton?: (input: { tritonCapable?: boolean; tritonActive?: boolean }) => Promise<void>;
 }
 
 const months = [
@@ -147,6 +150,8 @@ export function EditMachineDialog({
   onDeleteItem,
   canArchive = false,
   canDeleteItems = false,
+  canConfigureTriton = false,
+  onUpdateTriton,
 }: Props) {
   const [draft, setDraft] = useState<Machine | null>(null);
   const [tab, setTab] = useState<EditMachineTab>(initialTab);
@@ -161,6 +166,7 @@ export function EditMachineDialog({
     item: TodoItem;
   } | null>(null);
   const [itemActionBusy, setItemActionBusy] = useState(false);
+  const [tritonBusy, setTritonBusy] = useState(false);
 
   useEffect(() => {
     if (!open || !machine) {
@@ -196,6 +202,22 @@ export function EditMachineDialog({
     if (open) setTab(initialTab);
   }, [open, initialTab, machine?.id]);
 
+  useEffect(() => {
+    if (!open || !machine) return;
+    setDraft((current) => {
+      if (!current) return current;
+      const tritonCapable = Boolean(machine.tritonCapable);
+      const tritonActive = tritonCapable && Boolean(machine.tritonActive);
+      if (
+        Boolean(current.tritonCapable) === tritonCapable &&
+        Boolean(current.tritonActive) === tritonActive
+      ) {
+        return current;
+      }
+      return { ...current, tritonCapable, tritonActive };
+    });
+  }, [open, machine, machine?.tritonCapable, machine?.tritonActive]);
+
   if (!draft) return null;
 
   const kind = machineKind(draft);
@@ -216,6 +238,27 @@ export function EditMachineDialog({
 
   const set = <K extends keyof Machine>(k: K, v: Machine[K]) =>
     setDraft((d) => (d ? { ...d, [k]: v } : d));
+
+  const persistTriton = async (input: { tritonCapable?: boolean; tritonActive?: boolean }) => {
+    const previousCapable = Boolean(draft.tritonCapable);
+    const previousActive = Boolean(draft.tritonActive);
+    const tritonCapable = input.tritonCapable ?? previousCapable;
+    const tritonActive = tritonCapable && (input.tritonActive ?? previousActive);
+    setDraft((d) => (d ? { ...d, tritonCapable, tritonActive } : d));
+    if (!onUpdateTriton) return;
+    setTritonBusy(true);
+    try {
+      await onUpdateTriton(
+        input.tritonCapable !== undefined ? { tritonCapable, tritonActive } : { tritonActive },
+      );
+    } catch {
+      setDraft((d) =>
+        d ? { ...d, tritonCapable: previousCapable, tritonActive: previousActive } : d,
+      );
+    } finally {
+      setTritonBusy(false);
+    }
+  };
 
   const createLinkedTicket = async (
     category: Extract<TicketCategory, "probleme" | "flag">,
@@ -644,6 +687,77 @@ const remove = async () => {
   </div>
 </div>
               </fieldset>
+
+              {(canConfigureTriton || draft.tritonCapable) && (
+                <div
+                  className={cn(
+                    "rounded-xl border p-4 space-y-3",
+                    draft.tritonActive
+                      ? "border-warning/50 bg-warning/8"
+                      : "bg-muted/40",
+                  )}
+                >
+                  <div className="flex items-start gap-2">
+                    <Droplets
+                      className={cn(
+                        "mt-0.5 h-4 w-4 shrink-0",
+                        draft.tritonActive ? "text-warning" : "text-muted-foreground",
+                      )}
+                    />
+                    <div>
+                      <div className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                        Triton
+                      </div>
+                      <p className="text-[11px] text-muted-foreground">
+                        Branchement bidons pour les manips Triton (occasionnel, fort impact).
+                      </p>
+                    </div>
+                  </div>
+
+                  {canConfigureTriton && (
+                    <div className="flex items-center justify-between gap-3 rounded-lg border bg-background px-3 py-2.5">
+                      <span>
+                        <span className="block text-sm font-medium">
+                          Compatible bidons Triton
+                        </span>
+                        <span className="block text-[11px] text-muted-foreground">
+                          Visible uniquement pour admin et technicien.
+                        </span>
+                      </span>
+                      <Switch
+                        checked={Boolean(draft.tritonCapable)}
+                        disabled={tritonBusy || !onUpdateTriton}
+                        onCheckedChange={(checked) => {
+                          void persistTriton({
+                            tritonCapable: checked,
+                            tritonActive: checked ? Boolean(draft.tritonActive) : false,
+                          });
+                        }}
+                      />
+                    </div>
+                  )}
+
+                  {draft.tritonCapable && (
+                    <div className="flex items-center justify-between gap-3 rounded-lg border bg-background px-3 py-2.5">
+                      <span>
+                        <span className="block text-sm font-medium">
+                          Mode Triton actif
+                        </span>
+                        <span className="block text-[11px] text-muted-foreground">
+                          Case aussi disponible sur la carte pour les opérateurs.
+                        </span>
+                      </span>
+                      <Switch
+                        checked={Boolean(draft.tritonActive)}
+                        disabled={tritonBusy || !onUpdateTriton}
+                        onCheckedChange={(checked) => {
+                          void persistTriton({ tritonActive: checked });
+                        }}
+                      />
+                    </div>
+                  )}
+                </div>
+              )}
             </TabsContent>
 
             <TabsContent value="flags" className="mt-0">

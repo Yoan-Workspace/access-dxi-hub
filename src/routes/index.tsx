@@ -50,6 +50,7 @@ import {
   resetUserPassword,
   updateMachine,
   updateMachineItemChecklist,
+  updateMachineTriton,
   updateTicket,
 } from "@/lib/api";
 import type { ChecklistItem, Machine, Ticket, User } from "@/lib/types";
@@ -64,6 +65,8 @@ import {
   canEditMachine,
   canEditTicket,
   canManageUsers,
+  canConfigureTriton,
+  canToggleTritonActive,
   isReadOnlyUser,
   roleLabel,
 } from "@/lib/permissions";
@@ -672,6 +675,46 @@ function HomePage() {
     onError: (e) => toast.error(`Échec de la suppression : ${(e as Error).message}`),
   });
 
+  const applyTritonUpdate = (machine: Machine) => {
+    qc.setQueryData<Machine[]>(["machines"], (prev) =>
+      prev?.map((m) => (Number(m.id) === Number(machine.id) ? machine : m)) ?? prev,
+    );
+    setEditing((current) => {
+      if (!current || Number(current.id) !== Number(machine.id)) return current;
+      return {
+        ...current,
+        tritonCapable: machine.tritonCapable,
+        tritonActive: machine.tritonActive,
+      };
+    });
+  };
+
+  const tritonMutation = useMutation({
+    mutationFn: ({
+      machineId,
+      tritonCapable,
+      tritonActive,
+    }: {
+      machineId: number;
+      tritonCapable?: boolean;
+      tritonActive?: boolean;
+    }) => updateMachineTriton(machineId, { tritonCapable, tritonActive }),
+    onMutate: markLocalWrite,
+    onSuccess: ({ machine }, input) => {
+      applyTritonUpdate(machine);
+      if (input.tritonCapable !== undefined) {
+        toast.success(
+          machine.tritonCapable
+            ? "Machine identifiée comme compatible Triton"
+            : "Compatibilité Triton retirée",
+        );
+      } else {
+        toast.success(machine.tritonActive ? "Mode Triton activé" : "Mode Triton désactivé");
+      }
+    },
+    onError: (e) => toast.error(`Échec Triton : ${(e as Error).message}`),
+  });
+
   const refreshUsers = async () => {
     if (!canManageUsers(user?.role)) return;
     setUsers(await fetchUsers());
@@ -931,6 +974,19 @@ function HomePage() {
                     tickets={visible}
                     liveColor={liveStatuses[m.id]?.color}
                     onEdit={(tab) => openEdit(m, tab)}
+                    tritonBusy={
+                      tritonMutation.isPending && tritonMutation.variables?.machineId === m.id
+                    }
+                    onToggleTriton={
+                      API_CONFIGURED && canToggleTritonActive(user?.role)
+                        ? (active) => {
+                            void tritonMutation.mutateAsync({
+                              machineId: m.id,
+                              tritonActive: active,
+                            });
+                          }
+                        : undefined
+                    }
                   />
                 );
               })}
@@ -998,6 +1054,17 @@ function HomePage() {
         }
         canArchive={canArchiveItem(user?.role)}
         canDeleteItems={canDeleteItem(user?.role)}
+        canConfigureTriton={canConfigureTriton(user?.role)}
+        onUpdateTriton={
+          API_CONFIGURED && editing && canToggleTritonActive(user?.role)
+            ? async (input) => {
+                await tritonMutation.mutateAsync({
+                  machineId: editing.id,
+                  ...input,
+                });
+              }
+            : undefined
+        }
         onArchiveItem={
           API_CONFIGURED && editing && canArchiveItem(user?.role)
             ? async (itemId, listKey) => {

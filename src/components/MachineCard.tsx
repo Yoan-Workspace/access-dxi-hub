@@ -3,6 +3,7 @@ import {
   AlertTriangle,
   Calendar,
   CheckCircle2,
+  Droplets,
   ExternalLink,
   Flag,
   Lightbulb,
@@ -19,6 +20,7 @@ import { machineKind } from "@/lib/types";
 import { waveForMachine } from "@/lib/machineWave";
 import { effectiveStatus, STATUS_LABELS } from "@/lib/machineEtat";
 import { ProgressRing } from "@/components/ProgressRing";
+import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
 
 const statusStyle: Record<Machine["status"], { color: string; ring: string }> = {
@@ -148,14 +150,18 @@ export function MachineCard({
   ticketsClosed = 0,
   tickets = [],
   liveColor,
+  tritonBusy = false,
   onEdit,
+  onToggleTriton,
 }: {
   machine: Machine;
   ticketsOpen?: number;
   ticketsClosed?: number;
   tickets?: Ticket[];
   liveColor?: "red" | "green" | "blue" | "unknown";
+  tritonBusy?: boolean;
   onEdit: (tab?: EditMachineTab) => void;
+  onToggleTriton?: (active: boolean) => void;
 }) {
   const kind = machineKind(machine);
   const wave = waveForMachine(machine);
@@ -173,6 +179,8 @@ export function MachineCard({
   const repairsDone = doneCount(machine.repairs);
   const topBarClass = cardTopBarClass(machine, kind);
   const pmThisMonth = pmDueThisMonthLabel(machine);
+  const tritonCapable = Boolean(machine.tritonCapable);
+  const tritonActive = tritonCapable && Boolean(machine.tritonActive);
   const openTicketTasks = tickets
     .filter((ticket) => ticket.status === "open")
     .flatMap((ticket) => ticket.checklist ?? []);
@@ -186,6 +194,8 @@ export function MachineCard({
         "hover:-translate-y-1",
         "hover:border-primary/40",
         "hover:shadow-[0_8px_30px_-12px_rgba(0,0,0,0.12)]",
+        tritonActive &&
+          "border-warning/70 bg-warning/6 ring-1 ring-warning/35 hover:border-warning",
       )}
     >
       <span className={cn("absolute left-5 right-5 top-0 h-[3px] rounded-b-full", topBarClass)} />
@@ -216,6 +226,13 @@ export function MachineCard({
               <span className="inline-flex items-center gap-1 rounded-full bg-warning/15 px-2 py-0.5 text-[10px] font-semibold text-warning">
                 <Calendar className="h-3 w-3" />
                 {pmThisMonth}
+              </span>
+            )}
+
+            {tritonActive && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-warning px-2 py-0.5 text-[10px] font-bold tracking-wide text-foreground">
+                <Droplets className="h-3 w-3" />
+                TRITON ACTIF
               </span>
             )}
           </div>
@@ -311,6 +328,50 @@ export function MachineCard({
           tone="neutral"
         />
       </div>
+
+      {tritonCapable && (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            if (tritonBusy || !onToggleTriton) return;
+            onToggleTriton(!tritonActive);
+          }}
+          disabled={tritonBusy || !onToggleTriton}
+          aria-pressed={tritonActive}
+          aria-label={tritonActive ? "Désactiver le mode Triton" : "Activer le mode Triton"}
+          className={cn(
+            "flex items-center gap-2.5 rounded-lg border px-3 py-2 text-left transition",
+            tritonActive
+              ? "border-warning/50 bg-warning/15 text-foreground"
+              : "border-border bg-background/50 text-muted-foreground hover:border-warning/40 hover:bg-warning/10",
+            (tritonBusy || !onToggleTriton) && "cursor-not-allowed opacity-70",
+          )}
+        >
+          <Checkbox
+            checked={tritonActive}
+            disabled={tritonBusy || !onToggleTriton}
+            tabIndex={-1}
+            className={cn(
+              "pointer-events-none",
+              tritonActive &&
+                "border-warning data-[state=checked]:bg-warning data-[state=checked]:text-foreground",
+            )}
+            aria-hidden
+          />
+          <Droplets className={cn("h-3.5 w-3.5 shrink-0", tritonActive && "text-warning")} />
+          <span className="min-w-0 flex-1">
+            <span className={cn("block text-xs font-semibold", tritonActive && "text-foreground")}>
+              {tritonActive ? "Triton actif" : "Mode Triton"}
+            </span>
+            <span className="block text-[10px] text-muted-foreground">
+              {tritonActive
+                ? "Manip en cours — décocher à la fin"
+                : "Cocher si branchée sur les bidons"}
+            </span>
+          </span>
+        </button>
+      )}
 
       <div className="grid grid-cols-4 gap-1.5">
         <Counter
