@@ -580,7 +580,82 @@ const remove = async () => {
                   </>
                 )}
               </div>
+              </fieldset>
 
+              {(canConfigureTriton || draft.tritonCapable) && (
+                <div
+                  className={cn(
+                    "rounded-xl border p-3 space-y-2.5",
+                    draft.tritonActive
+                      ? "border-warning/50 bg-warning/10"
+                      : "bg-muted/40",
+                  )}
+                >
+                  <div className="flex items-start gap-2">
+                    <Droplets
+                      className={cn(
+                        "mt-0.5 h-4 w-4 shrink-0",
+                        draft.tritonActive ? "text-warning" : "text-muted-foreground",
+                      )}
+                    />
+                    <div>
+                      <div className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                        Triton
+                      </div>
+                      <p className="text-[11px] text-muted-foreground">
+                        Branchement bidons pour les manips Triton (occasionnel, fort impact).
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="grid gap-2 sm:grid-cols-2">
+                  {canConfigureTriton && (
+                    <div className="flex items-center justify-between gap-3 rounded-lg border bg-background px-3 py-2.5">
+                      <span>
+                        <span className="block text-sm font-medium">
+                          Compatible bidons
+                        </span>
+                        <span className="block text-[11px] text-muted-foreground">
+                          Admin / technicien
+                        </span>
+                      </span>
+                      <Switch
+                        checked={Boolean(draft.tritonCapable)}
+                        disabled={tritonBusy || !onUpdateTriton}
+                        onCheckedChange={(checked) => {
+                          void persistTriton({
+                            tritonCapable: checked,
+                            tritonActive: checked ? Boolean(draft.tritonActive) : false,
+                          });
+                        }}
+                      />
+                    </div>
+                  )}
+
+                  {draft.tritonCapable && (
+                    <div className="flex items-center justify-between gap-3 rounded-lg border bg-background px-3 py-2.5">
+                      <span>
+                        <span className="block text-sm font-medium">
+                          Mode actif
+                        </span>
+                        <span className="block text-[11px] text-muted-foreground">
+                          Aussi sur la carte
+                        </span>
+                      </span>
+                      <Switch
+                        checked={Boolean(draft.tritonActive)}
+                        disabled={tritonBusy || !onUpdateTriton}
+                        onCheckedChange={(checked) => {
+                          void persistTriton({ tritonActive: checked });
+                        }}
+                      />
+                    </div>
+                  )}
+                  </div>
+                </div>
+              )}
+
+              <fieldset disabled={readOnly} className="space-y-5 disabled:opacity-100">
               <div className="rounded-xl border bg-muted/40 p-4 space-y-4">
   <div className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
     Maintenance Préventive
@@ -687,77 +762,6 @@ const remove = async () => {
   </div>
 </div>
               </fieldset>
-
-              {(canConfigureTriton || draft.tritonCapable) && (
-                <div
-                  className={cn(
-                    "rounded-xl border p-4 space-y-3",
-                    draft.tritonActive
-                      ? "border-warning/50 bg-warning/8"
-                      : "bg-muted/40",
-                  )}
-                >
-                  <div className="flex items-start gap-2">
-                    <Droplets
-                      className={cn(
-                        "mt-0.5 h-4 w-4 shrink-0",
-                        draft.tritonActive ? "text-warning" : "text-muted-foreground",
-                      )}
-                    />
-                    <div>
-                      <div className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                        Triton
-                      </div>
-                      <p className="text-[11px] text-muted-foreground">
-                        Branchement bidons pour les manips Triton (occasionnel, fort impact).
-                      </p>
-                    </div>
-                  </div>
-
-                  {canConfigureTriton && (
-                    <div className="flex items-center justify-between gap-3 rounded-lg border bg-background px-3 py-2.5">
-                      <span>
-                        <span className="block text-sm font-medium">
-                          Compatible bidons Triton
-                        </span>
-                        <span className="block text-[11px] text-muted-foreground">
-                          Visible uniquement pour admin et technicien.
-                        </span>
-                      </span>
-                      <Switch
-                        checked={Boolean(draft.tritonCapable)}
-                        disabled={tritonBusy || !onUpdateTriton}
-                        onCheckedChange={(checked) => {
-                          void persistTriton({
-                            tritonCapable: checked,
-                            tritonActive: checked ? Boolean(draft.tritonActive) : false,
-                          });
-                        }}
-                      />
-                    </div>
-                  )}
-
-                  {draft.tritonCapable && (
-                    <div className="flex items-center justify-between gap-3 rounded-lg border bg-background px-3 py-2.5">
-                      <span>
-                        <span className="block text-sm font-medium">
-                          Mode Triton actif
-                        </span>
-                        <span className="block text-[11px] text-muted-foreground">
-                          Case aussi disponible sur la carte pour les opérateurs.
-                        </span>
-                      </span>
-                      <Switch
-                        checked={Boolean(draft.tritonActive)}
-                        disabled={tritonBusy || !onUpdateTriton}
-                        onCheckedChange={(checked) => {
-                          void persistTriton({ tritonActive: checked });
-                        }}
-                      />
-                    </div>
-                  )}
-                </div>
-              )}
             </TabsContent>
 
             <TabsContent value="flags" className="mt-0">
