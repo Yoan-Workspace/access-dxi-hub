@@ -3,7 +3,7 @@
     {
       "id": 1,
       "name": "MP11",
-      "lastDate": "2026-08-31T14:15:15",
+      "lastDate": "2026-09-24T13:47:13",
       "flags": [],
       "pmRef": {
         "period": 6,
@@ -41,7 +41,29 @@
         {
           "text": "Pièce pour capteur fermeture porte TIPS",
           "completed": false,
-          "id": 7
+          "id": 7,
+          "checklist": [
+            {
+              "id": 1,
+              "text": "1. A dessiner et realiser",
+              "completed": false
+            },
+            {
+              "id": 2,
+              "text": "2. Dessin technique",
+              "completed": false
+            },
+            {
+              "id": 3,
+              "text": "3. fabriquer piece",
+              "completed": false
+            },
+            {
+              "id": 4,
+              "text": "4. on jette la machine",
+              "completed": false
+            }
+          ]
         }
       ],
       "problems": [
@@ -69,8 +91,17 @@
     {
       "id": 2,
       "name": "MP12",
-      "lastDate": "2026-08-31T12:31:20",
-      "flags": [],
+      "lastDate": "2026-09-28T06:18:44",
+      "flags": [
+        {
+          "id": 7,
+          "text": "3 flags TRU pipeteur 4",
+          "completed": false,
+          "checklist": [],
+          "ticketId": 18,
+          "createdAt": "2026-09-16T07:24:21"
+        }
+      ],
       "pmRef": {
         "period": 12,
         "month": "Juillet",
@@ -103,6 +134,12 @@
           "completed": true,
           "completedDate": "06/08/2026",
           "id": 5
+        },
+        {
+          "id": 6,
+          "text": "Impossible de décharger les packs: erreur the analyzer cannot unload or discard the selected reagent pack",
+          "completed": true,
+          "completedDate": "28/09/2026"
         }
       ],
       "problems": [
@@ -111,7 +148,17 @@
           "text": "Problème de z-axis RSM gripper lorsque j'ai voulu décharger mes packs - impossible d'initialiser la machine",
           "completed": true,
           "ticketId": 13,
-          "completedDate": "31/08/2026"
+          "completedDate": "31/08/2026",
+          "createdAt": "2026-08-26T14:23:36"
+        },
+        {
+          "id": 6,
+          "text": "Impossible de décharger les packs: erreur the analyzer cannot unload or discard the selected reagent pack",
+          "completed": true,
+          "checklist": [],
+          "ticketId": 20,
+          "createdAt": "2026-09-18T09:51:29",
+          "completedDate": "28/09/2026"
         }
       ],
       "repairs": [],
@@ -124,30 +171,33 @@
     {
       "id": 3,
       "name": "MP16",
-      "lastDate": "2026-09-07T15:03:08",
+      "lastDate": "2026-10-05T09:15:21",
       "flags": [
         {
           "text": "WWS",
           "completed": true,
           "id": 5,
           "ticketId": 9,
-          "completedDate": "31/08/2026"
+          "completedDate": "31/08/2026",
+          "createdAt": "2026-08-19T12:05:54"
         }
       ],
       "pmRef": {
-        "period": 6,
-        "month": "Mars",
+        "period": 12,
+        "month": "Septembre",
         "year": 2026
       },
       "sw": "1.24.0.22",
-      "status": "maintenance",
+      "status": "ok",
       "adam": "fonctionnelle",
       "improvements": [
         {
           "text": "TIPS GRIPPER",
           "completed": true,
           "completedDate": "09/07/2026",
-          "id": 6
+          "id": 6,
+          "archived": true,
+          "archivedAt": "2026-09-25T11:03:49"
         },
         {
           "text": "PELLETIER ZONE 1 --> définir date remplacement",
@@ -159,6 +209,11 @@
           "completed": true,
           "completedDate": "05/08/2026",
           "id": 8
+        },
+        {
+          "id": 9,
+          "text": "SPU CAMERA JOB TO BE UPDATED",
+          "completed": false
         }
       ],
       "problems": [
@@ -167,28 +222,40 @@
           "completed": true,
           "completedDate": "21/05/2026",
           "id": 2,
-          "ticketId": 7
+          "ticketId": 7,
+          "archived": true,
+          "archivedAt": "2026-09-25T11:02:16",
+          "createdAt": "2026-09-25T11:02:16"
         },
         {
           "text": "pipetteur 4 capteur ok axe y remplacer board",
           "completed": true,
           "completedDate": "07/08/2026",
           "id": 3,
-          "ticketId": 8
+          "ticketId": 8,
+          "archived": true,
+          "archivedAt": "2026-09-25T11:01:21",
+          "createdAt": "2026-09-25T11:01:21"
         },
         {
           "text": "calibrating rsm timing",
           "completed": true,
           "ticketId": 2,
           "completedDate": "19/08/2026",
-          "id": 4
+          "id": 4,
+          "createdAt": "2026-07-09T13:28:39",
+          "archived": true,
+          "archivedAt": "2026-09-25T11:03:29"
         },
         {
           "id": 5,
           "text": "Pelletier 1 Reagent Storage HS",
           "completed": true,
           "ticketId": 10,
-          "completedDate": "01/09/2026"
+          "completedDate": "01/09/2026",
+          "createdAt": "2026-08-19T12:08:00",
+          "archived": true,
+          "archivedAt": "2026-09-25T11:10:58"
         }
       ],
       "repairs": [
@@ -214,13 +281,13 @@
       "localisation": "BSL2",
       "asdStatus": "fail_precision",
       "pmHistory": [],
-      "monthlyMaint": "done",
+      "monthlyMaint": "not_done",
       "serialNumber": 300016
     },
     {
       "id": 4,
       "name": "MP31",
-      "lastDate": "2026-08-20T12:39:00",
+      "lastDate": "2026-09-25T13:17:00",
       "flags": [],
       "pmRef": {
         "period": 12,
@@ -261,19 +328,29 @@
           "completed": true,
           "ticketId": 3,
           "completedDate": "13/08/2026",
-          "id": 1
+          "id": 1,
+          "createdAt": "2026-08-10T14:23:57"
         },
         {
           "text": "RSM calibration a faire par Yoan",
           "completed": true,
           "ticketId": 5,
           "completedDate": "20/08/2026",
-          "id": 2
+          "id": 2,
+          "createdAt": "2026-08-14T14:18:55"
         }
       ],
-      "repairs": [],
+      "repairs": [
+        {
+          "id": 7,
+          "text": "Compresseur et Reservoir --> clean complet avec dehumidification",
+          "completed": true,
+          "createdAt": "2026-09-25T13:16:16",
+          "completedDate": "25/09/2026"
+        }
+      ],
       "localisation": "BSL2",
-      "asdStatus": "fail_precision",
+      "asdStatus": "valid",
       "monthlyMaint": "not_done",
       "pmHistory": [],
       "serialNumber": 300031
@@ -281,7 +358,7 @@
     {
       "id": 5,
       "name": "MP34",
-      "lastDate": "2026-09-07T15:03:20",
+      "lastDate": "2026-09-18T09:49:30",
       "flags": [],
       "pmRef": {
         "period": 6,
@@ -291,7 +368,13 @@
       "sw": "1.24.0.22",
       "status": "ok",
       "adam": "fonctionnelle",
-      "improvements": [],
+      "improvements": [
+        {
+          "id": 1,
+          "text": "Waste aliquot UPGRADE MOD",
+          "completed": false
+        }
+      ],
       "problems": [
         {
           "text": "Problème detection cup 2ml/0.5ml - insert new job file mod 13247 - D37874 spu jobfile",
@@ -304,14 +387,23 @@
       "repairs": [],
       "localisation": "BSL2",
       "asdStatus": "valid",
-      "monthlyMaint": "done",
+      "monthlyMaint": "not_done",
       "serialNumber": 300034
     },
     {
       "id": 6,
       "name": "MP38",
-      "lastDate": "2026-08-10T13:26:51",
-      "flags": [],
+      "lastDate": "2026-09-29T14:41:29",
+      "flags": [
+        {
+          "id": 8,
+          "text": "WWS",
+          "completed": false,
+          "createdAt": "2026-09-29T14:41:27",
+          "ticketId": 23,
+          "checklist": []
+        }
+      ],
       "pmRef": {
         "period": 6,
         "month": "Avril",
@@ -338,9 +430,71 @@
           "completed": true,
           "completedDate": "10/08/2026",
           "id": 3
+        },
+        {
+          "id": 6,
+          "text": "Problème de détection des cups de 2 mL : j'ai eu 3 cups de 2mL qui ont été détectées en cup de 0.5mL entraînant des flags QNS",
+          "completed": false,
+          "createdAt": "2026-09-28T06:59:29"
         }
       ],
-      "problems": [],
+      "problems": [
+        {
+          "id": 5,
+          "text": "Problème de détection des cups de 2 mL : j'ai eu 3 cups de 2mL qui ont été détectées en cup de 0.5mL entraînant des flags QNS",
+          "completed": true,
+          "checklist": [],
+          "ticketId": 19,
+          "createdAt": "2026-09-16T08:42:40",
+          "completedDate": "28/09/2026"
+        },
+        {
+          "id": 7,
+          "text": "Hi-cera reagent pipettor 1 à remplacer",
+          "completed": true,
+          "ticketId": 21,
+          "checklist": [
+            {
+              "id": 1,
+              "text": "Remplacer hi-cera",
+              "completed": true,
+              "completedAt": "2026-09-28T13:22:06"
+            },
+            {
+              "id": 2,
+              "text": "Calibration P1 fluidics",
+              "completed": true,
+              "completedAt": "2026-09-28T13:22:07"
+            },
+            {
+              "id": 4,
+              "text": "Hi cera 1 et 4 remplacé",
+              "completed": true,
+              "completedAt": "2026-09-28T13:23:44"
+            },
+            {
+              "id": 5,
+              "text": "Calibration P1 et P4",
+              "completed": true,
+              "completedAt": "2026-09-28T13:23:46"
+            },
+            {
+              "id": 6,
+              "text": "ASD Carryover P1",
+              "completed": true,
+              "completedAt": "2026-09-29T04:57:52"
+            },
+            {
+              "id": 7,
+              "text": "ASD Carryover P4",
+              "completed": true,
+              "completedAt": "2026-09-29T04:57:56"
+            }
+          ],
+          "createdAt": "2026-09-28T10:50:13",
+          "completedDate": "29/09/2026"
+        }
+      ],
       "repairs": [
         {
           "text": "Investigation High RLU",
@@ -351,17 +505,35 @@
       ],
       "localisation": "BSL2",
       "asdStatus": "valid",
-      "monthlyMaint": "not_done"
+      "monthlyMaint": "not_done",
+      "serialNumber": 300038
     },
     {
       "id": 7,
       "name": "MP40",
-      "lastDate": "2026-08-18T14:06:45",
+      "lastDate": "2026-10-01T05:41:22",
       "flags": [
         {
           "text": "TRP, P4",
-          "completed": false,
-          "id": 1
+          "completed": true,
+          "id": 1,
+          "ticketId": 22,
+          "checklist": [
+            {
+              "id": 1,
+              "text": "Reservoir deshumidifié",
+              "completed": true,
+              "completedAt": "2026-09-30T13:39:07"
+            },
+            {
+              "id": 2,
+              "text": "Compresseur nettoyage complet deshumidifié",
+              "completed": true,
+              "completedAt": "2026-09-30T13:39:06"
+            }
+          ],
+          "createdAt": "2026-09-15T08:36:03",
+          "completedDate": "01/10/2026"
         }
       ],
       "pmRef": {
@@ -372,8 +544,72 @@
       "sw": "1.24.0.22",
       "status": "ok",
       "adam": "fonctionnelle",
-      "improvements": [],
-      "problems": [],
+      "improvements": [
+        {
+          "id": 1,
+          "text": "Compresseur a checker, reservoir presence eau ?",
+          "completed": true,
+          "completedDate": "30/09/2026",
+          "checklist": [
+            {
+              "id": 1,
+              "text": "Reservoir deshumidifié",
+              "completed": true,
+              "completedAt": "2026-09-30T13:39:07"
+            },
+            {
+              "id": 2,
+              "text": "Compresseur nettoyage complet deshumidifié",
+              "completed": true,
+              "completedAt": "2026-09-30T13:39:06"
+            }
+          ]
+        }
+      ],
+      "problems": [
+        {
+          "id": 2,
+          "text": "Precision pipetting 3 times in a row.",
+          "completed": true,
+          "ticketId": 15,
+          "checklist": [
+            {
+              "id": 1,
+              "text": "SPU camera calibration.",
+              "completed": true,
+              "completedAt": "2026-09-15T09:18:44"
+            },
+            {
+              "id": 2,
+              "text": "Stress Test",
+              "completed": true,
+              "completedAt": "2026-09-17T07:50:13"
+            },
+            {
+              "id": 3,
+              "text": "Mandrel a nettoyer",
+              "completed": true,
+              "completedAt": "2026-09-15T14:35:49"
+            },
+            {
+              "id": 4,
+              "text": "Precision pipetter pression calibration",
+              "completed": true,
+              "completedAt": "2026-09-16T12:34:50"
+            },
+            {
+              "id": 5,
+              "text": "Alignements all the line Precision pipetter",
+              "completed": true,
+              "completedAt": "2026-09-15T14:36:35"
+            }
+          ],
+          "completedDate": "17/09/2026",
+          "archived": true,
+          "archivedAt": "2026-09-25T11:04:16",
+          "createdAt": "2026-09-25T11:04:16"
+        }
+      ],
       "repairs": [],
       "localisation": "BSL2",
       "pmHistory": [
@@ -390,11 +626,11 @@
     {
       "id": 8,
       "name": "MP60",
-      "lastDate": "2026-08-13T07:05:00",
+      "lastDate": "2026-09-18T07:11:37",
       "flags": [],
       "pmRef": {
-        "period": 6,
-        "month": "Mars",
+        "period": 12,
+        "month": "Septembre",
         "year": 2026
       },
       "sw": "1.24.0.22",
@@ -411,13 +647,14 @@
       "problems": [],
       "repairs": [],
       "localisation": "BSL2",
-      "asdStatus": "fail_precision",
-      "monthlyMaint": "not_done"
+      "asdStatus": "valid",
+      "monthlyMaint": "not_done",
+      "serialNumber": 300060
     },
     {
       "id": 9,
       "name": "MP80",
-      "lastDate": "2026-08-18T14:23:07",
+      "lastDate": "2026-09-24T13:25:07",
       "flags": [],
       "pmRef": {
         "period": 6,
@@ -439,7 +676,7 @@
     {
       "id": 10,
       "name": "MP86",
-      "lastDate": "2026-08-20T11:29:46",
+      "lastDate": "2026-09-24T13:24:41",
       "flags": [
         {
           "text": "PVDR, PVSR",
@@ -450,8 +687,8 @@
         }
       ],
       "pmRef": {
-        "period": 6,
-        "month": "Mars",
+        "period": 12,
+        "month": "Septembre",
         "year": 2026
       },
       "sw": "1.24.0.22",
@@ -495,7 +732,7 @@
     {
       "id": 11,
       "name": "MP89",
-      "lastDate": "2026-08-20T11:30:27",
+      "lastDate": "2026-09-24T13:25:12",
       "flags": [],
       "pmRef": {
         "period": 12,
@@ -629,7 +866,7 @@
     {
       "id": 14,
       "name": "Access2 #501281",
-      "lastDate": "2026-05-27T10:44:20",
+      "lastDate": "2026-10-02T09:24:12",
       "flags": [],
       "pmRef": {
         "period": 6,
@@ -644,6 +881,12 @@
           "text": "LumWashSon FAIL",
           "completed": false,
           "id": 1
+        },
+        {
+          "id": 2,
+          "text": "Sample wheel quantité eau importante",
+          "completed": false,
+          "createdAt": "2026-10-02T09:24:11"
         }
       ],
       "problems": [],
@@ -679,15 +922,15 @@
     {
       "id": 16,
       "name": "Access2 #501278",
-      "lastDate": "2026-09-03T08:22:01",
+      "lastDate": "2026-09-11T08:29:23",
       "flags": [],
       "pmRef": {
-        "period": 12,
-        "month": "Mars",
+        "period": 6,
+        "month": "Septembre",
         "year": 2026
       },
       "sw": "4.1.0",
-      "status": "maintenance",
+      "status": "ok",
       "adam": "fonctionnelle",
       "improvements": [
         {
@@ -919,6 +1162,188 @@
       "itemId": 2,
       "closedAt": "2026-08-31T14:15:11",
       "closedBy": "Michael"
+    },
+    {
+      "id": 15,
+      "machineId": 7,
+      "category": "probleme",
+      "comment": "Precision pipetting 3 times in a row.",
+      "status": "closed",
+      "createdBy": 11,
+      "createdByName": "Langemeier, Michael",
+      "createdAt": "2026-09-15T08:35:56",
+      "updatedAt": "2026-09-17T15:20:15",
+      "checklist": [
+        {
+          "id": 1,
+          "text": "SPU camera calibration.",
+          "completed": true,
+          "completedAt": "2026-09-15T09:18:44"
+        },
+        {
+          "id": 2,
+          "text": "Stress Test",
+          "completed": true,
+          "completedAt": "2026-09-17T07:50:13"
+        },
+        {
+          "id": 3,
+          "text": "Mandrel a nettoyer",
+          "completed": true,
+          "completedAt": "2026-09-15T14:35:49"
+        },
+        {
+          "id": 4,
+          "text": "Precision pipetter pression calibration",
+          "completed": true,
+          "completedAt": "2026-09-16T12:34:50"
+        },
+        {
+          "id": 5,
+          "text": "Alignements all the line Precision pipetter",
+          "completed": true,
+          "completedAt": "2026-09-15T14:36:35"
+        }
+      ],
+      "itemId": 2,
+      "closedAt": "2026-09-17T15:20:15",
+      "closedBy": "Langemeier, Michael"
+    },
+    {
+      "id": 18,
+      "machineId": 2,
+      "category": "flag",
+      "comment": "3 flags TRU pipeteur 4",
+      "status": "open",
+      "createdBy": 9,
+      "createdByName": "Claus, Hadrien",
+      "createdAt": "2026-09-16T07:24:21",
+      "updatedAt": "2026-09-21T09:51:53",
+      "checklist": [],
+      "itemId": 7
+    },
+    {
+      "id": 19,
+      "machineId": 6,
+      "category": "probleme",
+      "comment": "Problème de détection des cups de 2 mL : j'ai eu 3 cups de 2mL qui ont été détectées en cup de 0.5mL entraînant des flags QNS",
+      "status": "closed",
+      "createdBy": 9,
+      "createdByName": "Claus, Hadrien",
+      "createdAt": "2026-09-16T08:42:40",
+      "updatedAt": "2026-09-28T06:18:56",
+      "checklist": [],
+      "itemId": 5,
+      "closedAt": "2026-09-28T06:18:56",
+      "closedBy": "Soussand, Yoan"
+    },
+    {
+      "id": 20,
+      "machineId": 2,
+      "category": "probleme",
+      "comment": "Impossible de décharger les packs: erreur the analyzer cannot unload or discard the selected reagent pack",
+      "status": "closed",
+      "createdBy": 11,
+      "createdByName": "Langemeier, Michael",
+      "createdAt": "2026-09-18T09:51:29",
+      "updatedAt": "2026-09-28T06:18:25",
+      "itemId": 6,
+      "checklist": [],
+      "closedAt": "2026-09-28T06:17:50",
+      "closedBy": "Soussand, Yoan"
+    },
+    {
+      "id": 21,
+      "machineId": 6,
+      "category": "probleme",
+      "comment": "Hi-cera reagent pipettor 1 à remplacer",
+      "status": "closed",
+      "createdBy": 7,
+      "createdByName": "Soussand, Yoan",
+      "createdAt": "2026-09-28T10:50:13",
+      "updatedAt": "2026-09-29T04:57:58",
+      "checklist": [
+        {
+          "id": 1,
+          "text": "Remplacer hi-cera",
+          "completed": true,
+          "completedAt": "2026-09-28T13:22:06"
+        },
+        {
+          "id": 2,
+          "text": "Calibration P1 fluidics",
+          "completed": true,
+          "completedAt": "2026-09-28T13:22:07"
+        },
+        {
+          "id": 4,
+          "text": "Hi cera 1 et 4 remplacé",
+          "completed": true,
+          "completedAt": "2026-09-28T13:23:44"
+        },
+        {
+          "id": 5,
+          "text": "Calibration P1 et P4",
+          "completed": true,
+          "completedAt": "2026-09-28T13:23:46"
+        },
+        {
+          "id": 6,
+          "text": "ASD Carryover P1",
+          "completed": true,
+          "completedAt": "2026-09-29T04:57:52"
+        },
+        {
+          "id": 7,
+          "text": "ASD Carryover P4",
+          "completed": true,
+          "completedAt": "2026-09-29T04:57:56"
+        }
+      ],
+      "itemId": 7,
+      "closedAt": "2026-09-29T04:57:58",
+      "closedBy": "Soussand, Yoan"
+    },
+    {
+      "id": 22,
+      "machineId": 7,
+      "category": "flag",
+      "comment": "TRP, P4",
+      "status": "closed",
+      "createdBy": 11,
+      "createdByName": "Langemeier, Michael",
+      "createdAt": "2026-09-29T08:20:54",
+      "updatedAt": "2026-10-01T05:41:16",
+      "itemId": 1,
+      "checklist": [
+        {
+          "id": 1,
+          "text": "Reservoir deshumidifié",
+          "completed": true,
+          "completedAt": "2026-09-30T13:39:07"
+        },
+        {
+          "id": 2,
+          "text": "Compresseur nettoyage complet deshumidifié",
+          "completed": true,
+          "completedAt": "2026-09-30T13:39:06"
+        }
+      ],
+      "closedAt": "2026-10-01T05:41:16",
+      "closedBy": "Soussand, Yoan"
+    },
+    {
+      "id": 23,
+      "machineId": 6,
+      "category": "flag",
+      "comment": "WWS",
+      "status": "open",
+      "createdBy": 11,
+      "createdByName": "Langemeier, Michael",
+      "createdAt": "2026-09-29T14:41:27",
+      "updatedAt": "2026-09-29T14:41:27",
+      "itemId": 8,
+      "checklist": []
     }
   ],
   "users": [
@@ -983,8 +1408,8 @@
       "username": "jjuan",
       "displayName": "Juan, Julie",
       "role": "operateur",
-      "salt": "31f7cfc31cd80fb038301828b162a767",
-      "passwordHash": "3e71589615351e5ca1a47a6661bf64611fbb9dec7ee1a577aebce26201c4c298922f84e9cf4ed98c7fd234d2eb0b72a7d95dc4e6b3db464b58086c47537acbda"
+      "salt": "431a5e3b77b37a0c45b3f429bd8d59f6",
+      "passwordHash": "fc9d3773372eb1882dd0ba0f7e16dff8120b97e1f20292acceaa11c9952bae63808c615bdd699b43b37d2d054cba79e4010d69232651881f49c32eaa8557b7fc"
     }
   ],
   "history": [
@@ -1490,5 +1915,6 @@
     }
   ],
   "exportDate": "2026-07-09T00:00:00.000Z",
-  "lastMonthlyMaintReset": "2026-09-01"
+  "lastMonthlyMaintReset": "2026-10-01",
+  "revision": 133
 }
