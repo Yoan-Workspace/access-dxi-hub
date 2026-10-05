@@ -12,6 +12,10 @@ export function canDeleteMachine(role?: UserRole) {
   return role === "admin" || role === "technicien";
 }
 
+export function canRetireMachine(role?: UserRole) {
+  return canDeleteMachine(role);
+}
+
 export function canCreateTicket(role?: UserRole) {
   return Boolean(role);
 }

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Archive, Droplets, Plus, Trash2, Check, Ticket as TicketIcon } from "lucide-react";
 import type { ChecklistItem, Machine, Ticket, TicketCategory, TodoItem } from "@/lib/types";
+import type { MachineArchives } from "@/lib/api";
 import { machineKind } from "@/lib/types";
 import { getMachineWave, inferSerialFromName } from "@/lib/machineWave";
 import {
@@ -9,7 +10,6 @@ import {
   liveItems,
   nowIsoStamp,
   visibleTickets,
-  withArchivedKept,
   type ArchiveListKey,
 } from "@/lib/archives";
 import { applyTicketsToMachine, linkTicketIdsPreserveText, mergeNewTicketItems, relocateLinkedItems, syncChecklistsFromTickets } from "@/lib/ticketSync";
@@ -67,6 +67,9 @@ interface Props {
   onOpenChange: (open: boolean) => void;
   onSave: (m: Machine) => Promise<void> | void;
   onDelete?: (id: number) => Promise<void> | void;
+  onTabChange?: (tab: EditMachineTab) => void;
+  archiveData?: MachineArchives | null;
+  archiveReady?: boolean;
   onUpdateTicket?: (
     id: number,
     input: Partial<Pick<Ticket, "category" | "comment" | "status" | "checklist">>,
@@ -141,6 +144,9 @@ export function EditMachineDialog({
   onOpenChange,
   onSave,
   onDelete,
+  onTabChange,
+  archiveData = null,
+  archiveReady = true,
   onUpdateTicket,
   onDeleteTicket,
   onCreateTicket,
@@ -222,10 +228,13 @@ export function EditMachineDialog({
 
   const kind = machineKind(draft);
   const nextPm = draft.pmRef ? getNextPmInfo(draft.pmRef) : null;
-  const archiveCount = ARCHIVE_LIST_KEYS.reduce(
-    (count, key) => count + archivedItems(draft[key]).length,
-    0,
-  );
+  const archiveCount =
+    archiveData?.archiveCount ??
+    machine?.archiveCount ??
+    ARCHIVE_LIST_KEYS.reduce(
+      (count, key) => count + archivedItems(draft[key]).length,
+      0,
+    );
   const activeTickets = visibleTickets(tickets, draft);
   const nextItemId = () =>
     ARCHIVE_LIST_KEYS.reduce((max, key) => {
@@ -314,12 +323,11 @@ export function EditMachineDialog({
     setItemActionBusy(true);
     try {
       if (type === "archive") {
-        const next = list.map((entry) =>
-          entry === item ||
-          (item.id != null && Number(entry.id) === Number(item.id)) ||
-          (item.ticketId != null && Number(entry.ticketId) === Number(item.ticketId))
-            ? { ...entry, archived: true, archivedAt: nowIsoStamp(), completed: true }
-            : entry,
+        const next = list.filter(
+          (entry) =>
+            entry !== item &&
+            !(item.id != null && Number(entry.id) === Number(item.id)) &&
+            !(item.ticketId != null && Number(entry.ticketId) === Number(item.ticketId)),
         );
         setList(listKey, next);
         if (item.id != null && onArchiveItem && (machine?.[listKey] ?? []).some((entry) => Number(entry.id) === Number(item.id))) {
@@ -333,7 +341,10 @@ export function EditMachineDialog({
             !(item.ticketId != null && Number(entry.ticketId) === Number(item.ticketId)),
         );
         setList(listKey, next);
-        if (item.id != null && onDeleteItem && (machine?.[listKey] ?? []).some((entry) => Number(entry.id) === Number(item.id))) {
+        if (item.id != null && onDeleteItem && (
+          (machine?.[listKey] ?? []).some((entry) => Number(entry.id) === Number(item.id)) ||
+          (archiveData?.[listKey] ?? []).some((entry) => Number(entry.id) === Number(item.id))
+        )) {
           await onDeleteItem(item.id, listKey);
         } else if (item.ticketId != null && onDeleteTicket) {
           await onDeleteTicket(item.ticketId);
@@ -416,7 +427,11 @@ const remove = async () => {
 
         <Tabs
           value={tab}
-          onValueChange={(v) => setTab(v as EditMachineTab)}
+          onValueChange={(v) => {
+            const next = v as EditMachineTab;
+            setTab(next);
+            onTabChange?.(next);
+          }}
           className="flex max-h-[70vh] flex-col"
         >
           <TabsList className="mx-6 mt-4 flex h-auto min-h-9 w-[calc(100%-3rem)] flex-wrap justify-start gap-1">
@@ -767,7 +782,7 @@ const remove = async () => {
             <TabsContent value="flags" className="mt-0">
               <TodoEditor
                 items={liveItems(draft.flags)}
-                onChange={(items) => set("flags", withArchivedKept(items, draft.flags))}
+                onChange={(items) => set("flags", items)}
                 placeholder="Nouveau flag…"
                 readOnly={readOnly}
                 createsTicket
@@ -788,7 +803,7 @@ const remove = async () => {
             <TabsContent value="problems" className="mt-0">
               <TodoEditor
                 items={liveItems(draft.problems)}
-                onChange={(items) => set("problems", withArchivedKept(items, draft.problems))}
+                onChange={(items) => set("problems", items)}
                 placeholder="Nouveau problème…"
                 readOnly={readOnly}
                 createsTicket
@@ -809,7 +824,7 @@ const remove = async () => {
             <TabsContent value="repairs" className="mt-0">
               <TodoEditor
                 items={liveItems(draft.repairs)}
-                onChange={(items) => set("repairs", withArchivedKept(items, draft.repairs))}
+                onChange={(items) => set("repairs", items)}
                 placeholder="Nouvelle réparation…"
                 readOnly={readOnly}
                 canArchive={canArchive}
@@ -823,7 +838,7 @@ const remove = async () => {
             <TabsContent value="improvements" className="mt-0">
               <TodoEditor
                 items={liveItems(draft.improvements)}
-                onChange={(items) => set("improvements", withArchivedKept(items, draft.improvements))}
+                onChange={(items) => set("improvements", items)}
                 placeholder="Nouvelle amélioration…"
                 readOnly={readOnly}
                 canArchive={canArchive}
@@ -858,12 +873,24 @@ const remove = async () => {
               )}
             </TabsContent>
             <TabsContent value="archives" className="mt-0">
-              <MachineArchivesPanel
-                machine={draft}
-                tickets={tickets}
-                canDelete={canDeleteItems}
-                onDelete={(item, listKey) => setItemAction({ type: "delete", listKey, item })}
-              />
+              {!archiveReady ? (
+                <p className="py-10 text-center text-sm text-muted-foreground">
+                  Chargement des archives…
+                </p>
+              ) : (
+                <MachineArchivesPanel
+                  machine={{
+                    ...draft,
+                    flags: archiveData?.flags ?? [],
+                    problems: archiveData?.problems ?? [],
+                    repairs: archiveData?.repairs ?? [],
+                    improvements: archiveData?.improvements ?? [],
+                  }}
+                  tickets={archiveData?.tickets ?? []}
+                  canDelete={canDeleteItems}
+                  onDelete={(item, listKey) => setItemAction({ type: "delete", listKey, item })}
+                />
+              )}
             </TabsContent>
           </div>
         </Tabs>
@@ -877,8 +904,8 @@ const remove = async () => {
               disabled={saving || deleting}
               onClick={() => setConfirmDelete(true)}
             >
-              <Trash2 className="h-4 w-4" />
-              Supprimer
+              <Archive className="h-4 w-4" />
+              Archiver
             </Button>
           ) : (
             <span />
@@ -910,10 +937,10 @@ const remove = async () => {
     <AlertDialog open={confirmDelete} onOpenChange={setConfirmDelete}>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>Supprimer {draft.name} ?</AlertDialogTitle>
+          <AlertDialogTitle>Archiver {draft.name} ?</AlertDialogTitle>
           <AlertDialogDescription>
-            Cette action est irréversible. La machine sera retirée de la base de
-            données.
+            La machine disparaîtra du tableau de bord. Son historique et ses tickets
+            resteront consultables dans la page Archives machines.
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
@@ -926,7 +953,7 @@ const remove = async () => {
             disabled={deleting}
             className="bg-destructive text-white hover:bg-destructive/90"
           >
-            {deleting ? "Suppression…" : "Supprimer définitivement"}
+            {deleting ? "Archivage…" : "Archiver la machine"}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

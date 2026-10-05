@@ -63,6 +63,8 @@ export interface Machine {
   tritonCapable?: boolean;
   /** Manip Triton en cours — visible et modifiable par les opérateurs */
   tritonActive?: boolean;
+  /** Nombre d'actions dans l'historique (fichier archives, hors data.json) */
+  archiveCount?: number;
 }
 
 export type MachineKind = "MP" | "ACCESS";
