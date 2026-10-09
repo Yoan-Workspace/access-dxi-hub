@@ -618,7 +618,7 @@ const remove = async () => {
                         Triton
                       </div>
                       <p className="text-[11px] text-muted-foreground">
-                        Branchement bidons pour les manips Triton (occasionnel, fort impact).
+                        Branchement pour les manips Triton (occasionnel, fort impact).
                       </p>
                     </div>
                   </div>
@@ -628,7 +628,7 @@ const remove = async () => {
                     <div className="flex items-center justify-between gap-3 rounded-lg border bg-background px-3 py-2.5">
                       <span>
                         <span className="block text-sm font-medium">
-                          Compatible bidons
+                          Compatible Triton
                         </span>
                         <span className="block text-[11px] text-muted-foreground">
                           Admin / technicien

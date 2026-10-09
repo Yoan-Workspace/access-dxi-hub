@@ -59,7 +59,7 @@ export interface Machine {
   monthlyMaint?: MonthlyMaint;
   /** N° de série DXI 9000 (ex. MP11 → 300011) */
   serialNumber?: number;
-  /** Machine raccordable aux bidons Triton (admin / technicien) */
+  /** Machine raccordable aux  Triton (admin / technicien) */
   tritonCapable?: boolean;
   /** Manip Triton en cours — visible et modifiable par les opérateurs */
   tritonActive?: boolean;
