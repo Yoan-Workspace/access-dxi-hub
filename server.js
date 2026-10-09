@@ -8,6 +8,27 @@ import zlib from "zlib";
 import { promisify } from "util";
 import { fileURLToPath } from "url";
 import jpeg from "jpeg-js";
+import {
+  ITEM_LIST_KEYS as STORE_ITEM_KEYS,
+  applyArchiveToStore,
+  archiveItemCount,
+  countArchivedItems,
+  deleteArchivedItem,
+  emptyArchive,
+  maxItemIdInArchive,
+  migrateMonolithicData,
+  moveItemToArchive,
+  nextLiveMachineId,
+  maxTicketIdInStore,
+  readArchive,
+  readRetired,
+  readRetiredIndex,
+  readUsersDoc,
+  storePaths,
+  writeArchive,
+  writeRetired,
+  writeUsersDoc,
+} from "./store.js";
 
 const inflatePng = promisify(zlib.inflate);
 
@@ -65,6 +86,7 @@ const loadedEnvFiles = [
 const app = express();
 const PORT = Number(process.env.PORT) || 3000;
 const DATA_PATH = process.env.DATA_PATH || "./data/data.json";
+const STORE = storePaths(DATA_PATH);
 const TEAMS_WEBHOOK_URL = process.env.TEAMS_WEBHOOK_URL?.trim() || "";
 const APP_PUBLIC_URL = (process.env.APP_PUBLIC_URL || `http://localhost:${PORT}`).replace(
   /\/$/,
@@ -360,10 +382,6 @@ function mergeMachine(base, ours, theirs) {
   };
 }
 
-function mergeUser(base, ours, theirs) {
-  return pickChanged(base, ours, theirs);
-}
-
 function mergeById(baseList, oursList, theirsList, mergeOne) {
   const baseMap = mapById(baseList);
   const oursMap = mapById(oursList);
@@ -409,7 +427,6 @@ function threeWayMerge(base, ours, theirs) {
     ...ours,
     machines: mergeById(base.machines, ours.machines, theirs.machines, mergeMachine),
     tickets: mergeById(base.tickets, ours.tickets, theirs.tickets, mergeTicket),
-    users: mergeById(base.users, ours.users, theirs.users, mergeUser),
     history: mergeHistory(base.history, ours.history, theirs.history),
     lastMonthlyMaintReset: [ours.lastMonthlyMaintReset, theirs.lastMonthlyMaintReset]
       .filter(Boolean)
@@ -488,10 +505,73 @@ function persistSessions() {
 function ensureDataShape(data) {
   if (!Array.isArray(data.machines)) data.machines = [];
   if (!Array.isArray(data.tickets)) data.tickets = [];
-  if (!Array.isArray(data.users)) data.users = [];
   if (!Array.isArray(data.history)) data.history = [];
   if (data.revision == null) data.revision = 0;
+  delete data.users;
   return data;
+}
+
+function readUsers() {
+  return readUsersDoc(STORE);
+}
+
+function updateUsers(mutator) {
+  acquireDataLock();
+  try {
+    const users = readUsers();
+    const result = mutator(users);
+    if (result === DB_UNCHANGED || result?.[DB_UNCHANGED]) {
+      return { users, result, written: false };
+    }
+    writeUsersDoc(STORE, users, atomicWriteJson);
+    return { users, result, written: true };
+  } finally {
+    releaseDataLock();
+  }
+}
+
+function liveMachinePayload(machine) {
+  const copy = { ...machine };
+  for (const key of STORE_ITEM_KEYS) {
+    copy[key] = (copy[key] ?? []).filter((item) => !item?.archived);
+  }
+  copy.archiveCount = countArchivedItems(STORE, copy.id);
+  return copy;
+}
+
+function normalizeRetiredArchive(snapshot) {
+  return snapshot?.archives || emptyArchive(snapshot?.id);
+}
+
+function retireLiveMachine(data, id, user) {
+  const index = data.machines.findIndex((m) => m.id === id);
+  if (index === -1) {
+    throw new DbAbort(404, "Machine introuvable");
+  }
+  const machine = data.machines[index];
+  const archives = readArchive(STORE, id);
+  const liveTickets = data.tickets.filter((ticket) => Number(ticket.machineId) === id);
+  const ticketIds = new Set(archives.tickets.map((ticket) => Number(ticket.id)));
+  const tickets = [...archives.tickets];
+  for (const ticket of liveTickets) {
+    if (!ticketIds.has(Number(ticket.id))) tickets.push(ticket);
+  }
+  const snapshot = {
+    id: machine.id,
+    name: machine.name,
+    localisation: machine.localisation ?? "",
+    serialNumber: machine.serialNumber,
+    retiredAt: new Date().toISOString().slice(0, 19),
+    retiredBy: user?.displayName || user?.username || "",
+    machine,
+    archives,
+    tickets,
+  };
+  writeRetired(STORE, snapshot, atomicWriteJson);
+  writeArchive(STORE, id, emptyArchive(id), atomicWriteJson);
+  data.machines.splice(index, 1);
+  data.tickets = data.tickets.filter((ticket) => Number(ticket.machineId) !== id);
+  return snapshot;
 }
 
 function hashPassword(password, salt = crypto.randomBytes(16).toString("hex")) {
@@ -513,12 +593,39 @@ function sanitizeUser(user) {
   };
 }
 
+function migrateLiveStore() {
+  acquireDataLock();
+  try {
+    if (!fs.existsSync(DATA_PATH)) return;
+    // Parse brut : ensureDataShape enlève `users` et casserait l'extraction.
+    const live = parseDataFile();
+    if (!Array.isArray(live.machines)) live.machines = [];
+    if (!Array.isArray(live.tickets)) live.tickets = [];
+    if (!Array.isArray(live.history)) live.history = [];
+    if (live.revision == null) live.revision = 0;
+    const { changed, report } = migrateMonolithicData(STORE, live, atomicWriteJson);
+    ensureDataShape(live);
+    if (changed) {
+      live.revision = (Number(live.revision) || 0) + 1;
+      atomicWriteJson(DATA_PATH, live);
+      if (report.users) {
+        console.log("Utilisateurs extraits vers data/users.json");
+      }
+      if (report.archives > 0) {
+        console.log(`Archives extraits pour ${report.archives} machine(s)`);
+      }
+    }
+  } finally {
+    releaseDataLock();
+  }
+}
+
 function seedDefaultAdmin() {
-  const { written } = updateDb((data) => {
-    if (data.users.length > 0) return DB_UNCHANGED;
+  const { written } = updateUsers((users) => {
+    if (users.length > 0) return DB_UNCHANGED;
 
     const { salt, hash } = hashPassword("admin");
-    data.users.push({
+    users.push({
       id: 1,
       username: "admin",
       displayName: "Administrateur",
@@ -1071,11 +1178,14 @@ function machineListForCategory(machine, category) {
 
 function nextMachineItemId(machine) {
   let max = 0;
-  for (const key of ["flags", "problems", "improvements", "repairs"]) {
+  for (const key of STORE_ITEM_KEYS) {
     for (const item of machine[key] ?? []) {
       const id = Number(item?.id);
       if (Number.isFinite(id) && id > max) max = id;
     }
+  }
+  if (machine?.id != null) {
+    max = Math.max(max, maxItemIdInArchive(STORE, machine.id));
   }
   return max + 1;
 }
@@ -1200,18 +1310,14 @@ function sameTodoIdentity(a, b) {
   return false;
 }
 
-/** Empêche un PUT machine d'écraser ou d'oublier les lignes archivées. */
+/** Les lignes archivées vivent hors de data.json : un PUT ne doit pas les ramener. */
 function preserveArchivedItems(previous, machine) {
-  if (!previous || !machine) return;
+  if (!machine) return;
   for (const key of ITEM_LIST_KEYS) {
-    const prevList = Array.isArray(previous[key]) ? previous[key] : [];
     if (!Array.isArray(machine[key])) machine[key] = [];
-    for (const item of prevList) {
-      if (!item?.archived) continue;
-      const exists = machine[key].some((entry) => sameTodoIdentity(entry, item));
-      if (!exists) machine[key].push({ ...item });
-    }
+    machine[key] = machine[key].filter((item) => !item?.archived);
   }
+  void previous;
 }
 
 function applyArchivePermissions(previous, machine, isAdmin) {
@@ -1460,9 +1566,13 @@ function inheritSameRowTicketId(nextList, prevList) {
   }
 }
 
+function nextTicketId(data) {
+  return maxTicketIdInStore(STORE, data.tickets) + 1;
+}
+
 function createLinkedTicket(data, machine, user, category, text, completed, now, item) {
   const ticket = {
-    id: nextId(data.tickets),
+    id: nextTicketId(data),
     machineId: Number(machine.id),
     category,
     comment: text,
@@ -2210,8 +2320,7 @@ app.post("/api/auth/login", (req, res) => {
     return res.status(400).json({ error: "Identifiant et mot de passe requis" });
   }
 
-  const data = ensureDataShape(readData());
-  const user = data.users.find(
+  const user = readUsers().find(
     (u) => u.username.toLowerCase() === username.trim().toLowerCase(),
   );
 
@@ -2253,8 +2362,8 @@ app.post("/api/auth/change-password", authMiddleware, (req, res) => {
   }
 
   try {
-    updateDb((data) => {
-      const user = data.users.find((u) => u.id === req.user.id);
+    updateUsers((users) => {
+      const user = users.find((u) => u.id === req.user.id);
 
       if (!user || !verifyPassword(currentPassword, user.salt, user.passwordHash)) {
         throw new DbAbort(401, "Mot de passe actuel incorrect");
@@ -2277,8 +2386,7 @@ app.post("/api/auth/change-password", authMiddleware, (req, res) => {
 //
 
 app.get("/api/users", authMiddleware, requireRole("admin"), (req, res) => {
-  const data = ensureDataShape(readData());
-  res.json({ users: data.users.map(sanitizeUser) });
+  res.json({ users: readUsers().map(sanitizeUser) });
 });
 
 app.post("/api/users", authMiddleware, requireRole("admin"), (req, res) => {
@@ -2291,9 +2399,9 @@ app.post("/api/users", authMiddleware, requireRole("admin"), (req, res) => {
 
   let user;
   try {
-    ({ result: user } = updateDb((data) => {
+    ({ result: user } = updateUsers((users) => {
       if (
-        data.users.some(
+        users.some(
           (u) => u.username.toLowerCase() === username.trim().toLowerCase(),
         )
       ) {
@@ -2302,7 +2410,7 @@ app.post("/api/users", authMiddleware, requireRole("admin"), (req, res) => {
 
       const { salt, hash } = hashPassword(password);
       const created = {
-        id: nextId(data.users),
+        id: nextId(users),
         username: username.trim(),
         displayName: displayName?.trim() || username.trim(),
         role,
@@ -2310,7 +2418,7 @@ app.post("/api/users", authMiddleware, requireRole("admin"), (req, res) => {
         passwordHash: hash,
       };
 
-      data.users.push(created);
+      users.push(created);
       return created;
     }));
   } catch (err) {
@@ -2324,18 +2432,18 @@ app.post("/api/users", authMiddleware, requireRole("admin"), (req, res) => {
 app.delete("/api/users/:id", authMiddleware, requireRole("admin"), (req, res) => {
   const id = Number(req.params.id);
   try {
-    updateDb((data) => {
-      const index = data.users.findIndex((u) => u.id === id);
+    updateUsers((users) => {
+      const index = users.findIndex((u) => u.id === id);
 
       if (index === -1) {
         throw new DbAbort(404, "Utilisateur introuvable");
       }
 
-      if (data.users[index].id === req.user.id) {
+      if (users[index].id === req.user.id) {
         throw new DbAbort(400, "Vous ne pouvez pas supprimer votre propre compte");
       }
 
-      data.users.splice(index, 1);
+      users.splice(index, 1);
     });
   } catch (err) {
     if (sendDbError(res, err)) return;
@@ -2358,8 +2466,8 @@ app.post(
     }
 
     try {
-      updateDb((data) => {
-        const user = data.users.find((u) => u.id === id);
+      updateUsers((users) => {
+        const user = users.find((u) => u.id === id);
 
         if (!user) {
           throw new DbAbort(404, "Utilisateur introuvable");
@@ -2418,7 +2526,7 @@ app.post("/api/tickets", authMiddleware, (req, res) => {
       const now = new Date().toISOString().slice(0, 19);
       const text = comment.trim();
       const ticket = {
-        id: nextId(data.tickets),
+        id: maxTicketIdInStore(STORE, data.tickets) + 1,
         machineId: Number(machineId),
         category,
         comment: text,
@@ -2702,7 +2810,7 @@ app.put(
 
         found.item.checklist = normalizeChecklist(req.body?.checklist);
         const ticket = applyChecklistToLinkedTicket(data, found.item);
-        return { machine, ticket: ticket ?? null };
+        return { machine: liveMachinePayload(machine), ticket: ticket ?? null };
       }).result;
     } catch (err) {
       if (sendDbError(res, err)) return;
@@ -2734,16 +2842,17 @@ app.put(
           throw new DbAbort(404, "Élément introuvable");
         }
 
-        const now = new Date().toISOString().slice(0, 19);
-        if (!found.item.completed) {
-          found.item.completed = true;
-          found.item.completedDate =
-            found.item.completedDate || new Date().toLocaleDateString("fr-FR");
+        const moved = moveItemToArchive(
+          STORE,
+          machine,
+          found,
+          data.tickets,
+          atomicWriteJson,
+        );
+        if (moved.ticketId != null) {
+          data.tickets = moved.remainingTickets;
         }
-        found.item.archived = true;
-        found.item.archivedAt = now;
-        if (!found.item.createdAt) found.item.createdAt = now;
-        return { machine };
+        return { machine: liveMachinePayload(machine) };
       }).result;
     } catch (err) {
       if (sendDbError(res, err)) return;
@@ -2775,23 +2884,37 @@ app.delete(
           itemId,
           req.query.listKey || req.body?.listKey,
         );
-        if (!found) {
+        if (found) {
+          const ticketId =
+            found.item.ticketId != null ? Number(found.item.ticketId) : null;
+          machine[found.key] = machine[found.key].filter(
+            (entry) => Number(entry.id) !== itemId,
+          );
+
+          if (ticketId != null) {
+            data.tickets = data.tickets.filter(
+              (ticket) => Number(ticket.id) !== ticketId,
+            );
+          }
+
+          return { machine: liveMachinePayload(machine), ticketId };
+        }
+
+        const archived = deleteArchivedItem(
+          STORE,
+          id,
+          itemId,
+          req.query.listKey || req.body?.listKey,
+          atomicWriteJson,
+        );
+        if (!archived) {
           throw new DbAbort(404, "Élément introuvable");
         }
-
-        const ticketId =
-          found.item.ticketId != null ? Number(found.item.ticketId) : null;
-        machine[found.key] = machine[found.key].filter(
-          (entry) => Number(entry.id) !== itemId,
-        );
-
-        if (ticketId != null) {
-          data.tickets = data.tickets.filter(
-            (ticket) => Number(ticket.id) !== ticketId,
-          );
-        }
-
-        return { machine, ticketId };
+        return {
+          machine: liveMachinePayload(machine),
+          ticketId:
+            archived.item.ticketId != null ? Number(archived.item.ticketId) : null,
+        };
       }).result;
     } catch (err) {
       if (sendDbError(res, err)) return;
@@ -2847,17 +2970,73 @@ app.get("/api/machines", authMiddleware, (req, res) => {
   try {
     const { data, written } = updateDb((data) => {
       let changed = false;
+      const extractedTicketIds = new Set();
       for (const machine of data.machines) {
         if (ensureAllMachineItemIds(machine)) changed = true;
+        const extracted = applyArchiveToStore(
+          STORE,
+          machine,
+          data.tickets,
+          atomicWriteJson,
+        );
+        if (extracted.changed) {
+          changed = true;
+          for (const ticketId of extracted.movedTicketIds) {
+            extractedTicketIds.add(ticketId);
+          }
+        }
+      }
+      if (extractedTicketIds.size > 0) {
+        data.tickets = data.tickets.filter(
+          (ticket) => !extractedTicketIds.has(Number(ticket.id)),
+        );
+        changed = true;
       }
       if (!changed) return DB_UNCHANGED;
     });
     if (written) notifyClients();
-    res.json({ machines: data.machines });
+    res.json({ machines: data.machines.map(liveMachinePayload) });
   } catch (err) {
     if (sendDbError(res, err)) return;
     throw err;
   }
+});
+
+app.get("/api/machines/:id/archives", authMiddleware, (req, res) => {
+  const id = Number(req.params.id);
+  try {
+    const data = ensureDataShape(readData());
+    const live = findMachine(data, id);
+    const retired = readRetired(STORE, id);
+    if (!live && !retired) {
+      return res.status(404).json({ error: "Machine introuvable" });
+    }
+    const archive = live ? readArchive(STORE, id) : normalizeRetiredArchive(retired);
+    res.json({
+      machineId: id,
+      flags: archive.flags,
+      problems: archive.problems,
+      repairs: archive.repairs,
+      improvements: archive.improvements,
+      tickets: archive.tickets,
+      archiveCount: archiveItemCount(archive),
+    });
+  } catch (err) {
+    if (sendDbError(res, err)) return;
+    throw err;
+  }
+});
+
+app.get("/api/retired-machines", authMiddleware, (_req, res) => {
+  res.json({ machines: readRetiredIndex(STORE) });
+});
+
+app.get("/api/retired-machines/:id", authMiddleware, (req, res) => {
+  const snapshot = readRetired(STORE, Number(req.params.id));
+  if (!snapshot) {
+    return res.status(404).json({ error: "Machine archivée introuvable" });
+  }
+  res.json({ machine: snapshot });
 });
 
 app.put("/api/machines/:id/triton", authMiddleware, (req, res) => {
@@ -2896,7 +3075,7 @@ app.put("/api/machines/:id/triton", authMiddleware, (req, res) => {
       const flags = normalizeTritonFlags({ tritonCapable, tritonActive });
       const machine = { ...previous, ...flags };
       data.machines[index] = machine;
-      return { machine };
+      return { machine: liveMachinePayload(machine) };
     }).result;
   } catch (err) {
     if (sendDbError(res, err)) return;
@@ -2923,6 +3102,7 @@ app.put(
 
         const previous = data.machines[index];
         const machine = { ...req.body, id, ...normalizeTritonFlags(previous) };
+        delete machine.archiveCount;
         ensureAllMachineItemIds(machine);
         preserveArchivedItems(previous, machine);
         applyArchivePermissions(previous, machine, req.user?.role === "admin");
@@ -2935,7 +3115,7 @@ app.put(
         alignMachineListsToTickets(machine, data.tickets);
         data.machines[index] = machine;
         return {
-          machine,
+          machine: liveMachinePayload(machine),
           createdTickets,
           tickets: data.tickets.filter((ticket) => Number(ticket.machineId) === id),
         };
@@ -2981,9 +3161,10 @@ app.post(
 
         const newMachine = {
           ...req.body,
-          id: nextId(data.machines),
+          id: nextLiveMachineId(STORE, data.machines),
           ...normalizeTritonFlags(req.body),
         };
+        delete newMachine.archiveCount;
         ensureAllMachineItemIds(newMachine);
         const { created: createdTickets } = syncMachineLinkedTickets(
           data,
@@ -2992,7 +3173,7 @@ app.post(
           req.user,
         );
         data.machines.push(newMachine);
-        return { newMachine, createdTickets };
+        return { newMachine: liveMachinePayload(newMachine), createdTickets };
       }).result;
     } catch (err) {
       if (sendDbError(res, err)) return;
@@ -3008,6 +3189,24 @@ app.post(
   },
 );
 
+app.post(
+  "/api/machines/:id/retire",
+  authMiddleware,
+  requireRole("admin", "technicien"),
+  (req, res) => {
+    const id = Number(req.params.id);
+    let snapshot;
+    try {
+      snapshot = updateDb((data) => retireLiveMachine(data, id, req.user)).result;
+    } catch (err) {
+      if (sendDbError(res, err)) return;
+      throw err;
+    }
+    notifyClients();
+    res.json({ ok: true, machine: snapshot });
+  },
+);
+
 app.delete(
   "/api/machines/:id",
   authMiddleware,
@@ -3015,15 +3214,7 @@ app.delete(
   (req, res) => {
     const id = Number(req.params.id);
     try {
-      updateDb((data) => {
-        const index = data.machines.findIndex((m) => m.id === id);
-        if (index === -1) {
-          throw new DbAbort(404, "Machine introuvable");
-        }
-
-        data.machines.splice(index, 1);
-        data.tickets = data.tickets.filter((t) => t.machineId !== id);
-      });
+      updateDb((data) => retireLiveMachine(data, id, req.user));
     } catch (err) {
       if (sendDbError(res, err)) return;
       throw err;
@@ -3055,7 +3246,6 @@ if (!fs.existsSync(DATA_PATH)) {
       atomicWriteJson(DATA_PATH, {
         machines: [],
         tickets: [],
-        users: [],
         history: [],
         revision: 1,
       });
@@ -3065,6 +3255,7 @@ if (!fs.existsSync(DATA_PATH)) {
   }
 }
 
+migrateLiveStore();
 seedDefaultAdmin();
 const restoredSessions = loadPersistedSessions();
 setupDataWatch();

@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Activity,
+  Archive,
   ExternalLink,
   Loader2,
   LogOut,
@@ -37,6 +38,7 @@ import {
   deleteMachineItem,
   deleteTicket,
   deleteUser,
+  fetchMachineArchives,
   fetchMachines,
   fetchTickets,
   fetchUsers,
@@ -235,6 +237,12 @@ function HomePage() {
   const [managingUsers, setManagingUsers] = useState(false);
   const [changePasswordOpen, setChangePasswordOpen] = useState(false);
   const [users, setUsers] = useState<User[]>([]);
+
+  const { data: archiveData = null, isFetched: archiveReady } = useQuery({
+    queryKey: ["machine-archives", editing?.id],
+    queryFn: () => fetchMachineArchives(Number(editing?.id)),
+    enabled: API_CONFIGURED && Boolean(user) && Boolean(editing) && editTab === "archives",
+  });
 
   const skipSseUntilRef = useRef(0);
   const lastSseToastRef = useRef(0);
@@ -452,10 +460,11 @@ function HomePage() {
       qc.setQueryData<Ticket[]>(["tickets"], (prev) =>
         prev?.filter((t) => t.machineId !== id) ?? prev,
       );
-      toast.success("Machine supprimée");
+      toast.success("Machine archivée — consultable dans Archives machines");
+      void qc.invalidateQueries({ queryKey: ["retired-machines"] });
       closeEditDialog();
     },
-    onError: (e) => toast.error(`Échec de la suppression : ${(e as Error).message}`),
+    onError: (e) => toast.error(`Échec de l'archivage : ${(e as Error).message}`),
   });
 
   const createTicketMutation = useMutation({
@@ -648,6 +657,7 @@ function HomePage() {
     onMutate: markLocalWrite,
     onSuccess: ({ machine }) => {
       applyMachineUpdate(machine);
+      void qc.invalidateQueries({ queryKey: ["machine-archives", machine.id] });
       toast.success("Action archivée");
     },
     onError: (e) => toast.error(`Échec de l'archive : ${(e as Error).message}`),
@@ -669,6 +679,9 @@ function HomePage() {
       else {
         void qc.invalidateQueries({ queryKey: ["machines"] });
         void qc.invalidateQueries({ queryKey: ["tickets"] });
+      }
+      if (machine) {
+        void qc.invalidateQueries({ queryKey: ["machine-archives", machine.id] });
       }
       toast.success("Action supprimée");
     },
@@ -859,6 +872,14 @@ function HomePage() {
                 Mode démo — lancez le serveur pour activer l'API
               </span>
             )}
+            {API_CONFIGURED && user && (
+              <Button variant="outline" asChild>
+                <Link to="/archives" title="Machines archivées">
+                  <Archive className="h-4 w-4" />
+                  <span className="hidden sm:inline">Archives</span>
+                </Link>
+              </Button>
+            )}
             {canCreateTicket(user?.role) && API_CONFIGURED && (
               <Button
                 onClick={() => {
@@ -1015,6 +1036,7 @@ function HomePage() {
         onSave={async (m) => {
           await updateMutation.mutateAsync(m);
         }}
+        onTabChange={setEditTab}
         onDelete={
           API_CONFIGURED && canDeleteMachine(user?.role)
             ? async (id) => {
@@ -1022,6 +1044,8 @@ function HomePage() {
               }
             : undefined
         }
+        archiveData={editing && editTab === "archives" ? archiveData : null}
+        archiveReady={!editing || editTab !== "archives" || !API_CONFIGURED || archiveReady}
         onUpdateTicket={async (id, input) => {
           await updateTicketMutation.mutateAsync({ id, input });
         }}

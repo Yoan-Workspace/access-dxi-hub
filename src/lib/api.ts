@@ -1,4 +1,4 @@
-import type { Machine, Ticket, User } from "./types";
+import type { Machine, Ticket, TodoItem, User } from "./types";
 
 function resolveApiBase(): string | undefined {
   // En production le front est servi par server.js : toujours la même origine.
@@ -160,8 +160,63 @@ export async function updateMachine(
   return { machine: data as Machine, createdTickets: [], tickets: [] };
 }
 
+export async function retireMachine(id: number): Promise<void> {
+  await apiFetch(`/api/machines/${id}/retire`, { method: "POST" });
+}
+
 export async function deleteMachine(id: number): Promise<void> {
-  await apiFetch(`/api/machines/${id}`, { method: "DELETE" });
+  await retireMachine(id);
+}
+
+export async function fetchMachineArchives(machineId: number): Promise<MachineArchives> {
+  return (await apiFetch(`/api/machines/${machineId}/archives`)) as MachineArchives;
+}
+
+export interface MachineArchives {
+  machineId: number;
+  flags: TodoItem[];
+  problems: TodoItem[];
+  repairs: TodoItem[];
+  improvements: TodoItem[];
+  tickets: Ticket[];
+  archiveCount: number;
+}
+
+export interface RetiredMachineSummary {
+  id: number;
+  name: string;
+  localisation: string;
+  serialNumber?: number;
+  retiredAt: string;
+  retiredBy: string;
+  ticketCount: number;
+  archiveCount: number;
+}
+
+export interface RetiredMachineSnapshot {
+  id: number;
+  name: string;
+  localisation: string;
+  serialNumber?: number;
+  retiredAt: string;
+  retiredBy: string;
+  machine: Machine;
+  archives: Omit<MachineArchives, "machineId" | "archiveCount">;
+  tickets: Ticket[];
+}
+
+export async function fetchRetiredMachines(): Promise<RetiredMachineSummary[]> {
+  const data = (await apiFetch("/api/retired-machines")) as {
+    machines?: RetiredMachineSummary[];
+  };
+  return Array.isArray(data.machines) ? data.machines : [];
+}
+
+export async function fetchRetiredMachine(id: number): Promise<RetiredMachineSnapshot> {
+  const data = (await apiFetch(`/api/retired-machines/${id}`)) as {
+    machine: RetiredMachineSnapshot;
+  };
+  return data.machine;
 }
 
 export async function fetchTickets(machineId?: number): Promise<Ticket[]> {
