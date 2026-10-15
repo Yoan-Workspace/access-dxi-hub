@@ -12,7 +12,7 @@ import {
   withArchivedKept,
   type ArchiveListKey,
 } from "@/lib/archives";
-import { applyTicketsToMachine, linkTicketIdsPreserveText, mergeNewTicketItems, relocateLinkedItems, syncChecklistsFromTickets } from "@/lib/ticketSync";
+import { applyTicketsToMachine, reconcileDraftWithTickets } from "@/lib/ticketSync";
 import { MachineArchivesPanel } from "@/components/MachineArchivesPanel";
 import { MachineTicketsPanel } from "@/components/MachineTicketsPanel";
 import { ItemChecklist } from "@/components/ItemChecklist";
@@ -191,12 +191,9 @@ export function EditMachineDialog({
     if (!open) return;
     setDraft((current) => {
       if (!current) return current;
-      const linked = linkTicketIdsPreserveText(current, tickets);
-      const relocated = relocateLinkedItems(linked, tickets);
-      const merged = mergeNewTicketItems(relocated, tickets);
-      return syncChecklistsFromTickets(merged, tickets);
+      return reconcileDraftWithTickets(current, tickets, { pruneMissing: ticketsReady });
     });
-  }, [open, tickets]);
+  }, [open, tickets, ticketsReady]);
 
   useEffect(() => {
     if (open) setTab(initialTab);
@@ -366,7 +363,7 @@ export function EditMachineDialog({
   const save = async () => {
   if (!draft) return;
 
-  const linked = relocateLinkedItems(linkTicketIdsPreserveText(draft, tickets), tickets);
+  const linked = reconcileDraftWithTickets(draft, tickets, { pruneMissing: ticketsReady });
 
   // La date de dernière intervention est mise à jour automatiquement à
   // l'enregistrement, sauf si elle a été renseignée manuellement.

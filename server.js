@@ -1377,16 +1377,30 @@ function completeTicketOnMachine(machine, category, text, ticketId) {
   return changed;
 }
 
-function removeTicketFromMachine(machine, ticketId) {
-  if (ticketId == null) return false;
+function removeTicketFromMachine(machine, ticket) {
+  if (ticket == null) return false;
+  const ticketId = Number(typeof ticket === "object" ? ticket.id : ticket);
+  if (!Number.isFinite(ticketId)) return false;
+  const itemId =
+    typeof ticket === "object" && ticket.itemId != null ? Number(ticket.itemId) : null;
+  const comment = typeof ticket === "object" ? String(ticket.comment ?? "") : "";
   let changed = false;
 
   for (const key of ["flags", "problems", "improvements"]) {
     const list = machine[key];
     if (!Array.isArray(list)) continue;
-    const next = list.filter(
-      (item) => Number(item.ticketId) !== Number(ticketId),
-    );
+    const next = list.filter((item) => {
+      if (Number(item.ticketId) === ticketId) return false;
+      if (
+        itemId != null &&
+        Number(item.id) === itemId &&
+        (item.ticketId == null || Number(item.ticketId) === ticketId)
+      ) {
+        return false;
+      }
+      if (item.ticketId == null && comment && item.text === comment) return false;
+      return true;
+    });
     if (next.length !== list.length) {
       machine[key] = next;
       changed = true;
@@ -1394,6 +1408,17 @@ function removeTicketFromMachine(machine, ticketId) {
   }
 
   return changed;
+}
+
+function dropItemsWithMissingTickets(machine, tickets) {
+  for (const key of ["flags", "problems", "improvements"]) {
+    const list = machine[key];
+    if (!Array.isArray(list)) continue;
+    machine[key] = list.filter((item) => {
+      if (item?.ticketId == null) return true;
+      return tickets.some((ticket) => Number(ticket.id) === Number(item.ticketId));
+    });
+  }
 }
 
 function closeTicketById(data, ticketId, closedBy) {
@@ -1564,6 +1589,8 @@ function syncMachineLinkedTickets(data, previous, machine, user) {
       }
 
       if (!ticket) {
+        // Un ticketId orphelin = ticket déjà supprimé. Ne pas le recréer.
+        if (item.ticketId != null) continue;
         if (!createIfMissing) continue;
         ticket = createLinkedTicket(
           data,
@@ -1600,14 +1627,16 @@ function syncMachineLinkedTickets(data, previous, machine, user) {
         );
         if (closedTicket) closed.push({ ticket: closedTicket, machine });
       } else if (!item.completed && !item.archived && ticket.status === "closed") {
-        ticket.status = "open";
-        delete ticket.closedAt;
-        delete ticket.closedBy;
-        ticket.updatedAt = now;
+        // Un brouillon périmé ne doit pas réouvrir un ticket déjà clôturé.
+        // La réouverture passe par PUT /api/tickets (bouton Rouvrir / case à cocher).
+        item.completed = true;
+        item.completedDate =
+          item.completedDate || new Date().toLocaleDateString("fr-FR");
       }
     }
   }
 
+  dropItemsWithMissingTickets(machine, data.tickets);
   return { created, closed };
 }
 
@@ -2558,16 +2587,7 @@ app.delete(
         const [removed] = data.tickets.splice(index, 1);
         const machine = findMachine(data, removed.machineId);
         if (machine) {
-          removeTicketFromMachine(machine, removed.id);
-          const list = machineListForCategory(machine, removed.category);
-          const key = TICKET_LIST_BY_CATEGORY[removed.category];
-          if (list && key) {
-            machine[key] = list.filter(
-              (item) =>
-                Number(item.ticketId) !== Number(removed.id) &&
-                !(item.ticketId == null && item.text === removed.comment),
-            );
-          }
+          removeTicketFromMachine(machine, removed);
         }
         return { machine: machine ?? null };
       }).result;

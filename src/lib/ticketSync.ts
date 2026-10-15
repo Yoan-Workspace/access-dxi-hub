@@ -263,7 +263,12 @@ export function mergeNewTicketItems(machine: Machine, tickets: Ticket[]): Machin
 }
 
 /** Déplace une ligne si son ticket a changé de catégorie (ex. problème → improvement). */
-export function relocateLinkedItems(machine: Machine, tickets: Ticket[]): Machine {
+export function relocateLinkedItems(
+  machine: Machine,
+  tickets: Ticket[],
+  options: { pruneMissing?: boolean } = {},
+): Machine {
+  const pruneMissing = options.pruneMissing ?? true;
   const next: Machine = {
     ...machine,
     flags: [...(machine.flags ?? [])],
@@ -278,7 +283,12 @@ export function relocateLinkedItems(machine: Machine, tickets: Ticket[]): Machin
     const filtered = next[key].filter((item) => {
       if (item.ticketId == null) return true;
       const ticket = tickets.find((entry) => sameId(entry.id, item.ticketId));
-      if (!ticket || !isLinkedTicket(ticket)) return true;
+      if (!ticket) {
+        if (!pruneMissing) return true;
+        changed = true;
+        return false;
+      }
+      if (!isLinkedTicket(ticket)) return true;
       if (ticket.category === category) return true;
       changed = true;
       return false;
@@ -287,6 +297,52 @@ export function relocateLinkedItems(machine: Machine, tickets: Ticket[]): Machin
   }
 
   return changed ? next : machine;
+}
+
+/** Aligne le coché / décoché des lignes sur le statut réel du ticket. */
+export function syncCompletionFromTickets(machine: Machine, tickets: Ticket[]): Machine {
+  let changed = false;
+  const next: Machine = {
+    ...machine,
+    flags: (machine.flags ?? []).map((item) => ({ ...item })),
+    problems: (machine.problems ?? []).map((item) => ({ ...item })),
+    improvements: (machine.improvements ?? []).map((item) => ({ ...item })),
+  };
+
+  for (const key of LINKED_LIST_KEYS) {
+    next[key] = next[key].map((item) => {
+      if (item.ticketId == null || item.archived) return item;
+      const ticket = tickets.find((entry) => sameId(entry.id, item.ticketId));
+      if (!ticket) return item;
+      const completed = ticket.status === "closed";
+      if (Boolean(item.completed) === completed) return item;
+      changed = true;
+      if (completed) {
+        return {
+          ...item,
+          completed: true,
+          completedDate: item.completedDate ?? todayFr(),
+        };
+      }
+      return { ...item, completed: false, completedDate: undefined };
+    });
+  }
+
+  return changed ? next : machine;
+}
+
+/** Après suppression / clôture : le brouillon doit suivre les tickets, pas l'inverse. */
+export function reconcileDraftWithTickets(
+  machine: Machine,
+  tickets: Ticket[],
+  options: { pruneMissing?: boolean } = {},
+): Machine {
+  const pruneMissing = options.pruneMissing ?? true;
+  const linked = linkTicketIdsPreserveText(machine, tickets);
+  const relocated = relocateLinkedItems(linked, tickets, { pruneMissing });
+  const merged = mergeNewTicketItems(relocated, tickets);
+  const completed = syncCompletionFromTickets(merged, tickets);
+  return syncChecklistsFromTickets(completed, tickets);
 }
 
 /** Aligne les checklists des flags / problèmes / improvements sur les tickets liés. */
