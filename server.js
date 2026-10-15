@@ -77,6 +77,42 @@ app.use(express.json({ limit: "2mb" }));
 
 const clients = [];
 const sessions = new Map();
+const idleShutdownDisabled = process.env.SHUTDOWN_WHEN_IDLE === "0";
+const IDLE_EXIT_MS = Number(process.env.IDLE_EXIT_MS) || 15_000;
+const STARTUP_EXIT_MS = Number(process.env.STARTUP_EXIT_MS) || 120_000;
+let lastUiAt = 0;
+let idleExitTimer = null;
+
+function cancelIdleExit() {
+  if (!idleExitTimer) return;
+  clearTimeout(idleExitTimer);
+  idleExitTimer = null;
+}
+
+function noteUiActivity() {
+  lastUiAt = Date.now();
+  if (clients.length > 0) cancelIdleExit();
+}
+
+function scheduleIdleExit(delayMs, message) {
+  if (idleShutdownDisabled) return;
+  cancelIdleExit();
+  idleExitTimer = setTimeout(() => {
+    idleExitTimer = null;
+    if (clients.length > 0) return;
+    if (lastUiAt && Date.now() - lastUiAt < IDLE_EXIT_MS) {
+      scheduleIdleExit(IDLE_EXIT_MS, message);
+      return;
+    }
+    console.log(message);
+    process.exit(0);
+  }, delayMs);
+}
+
+function onBrowserGone() {
+  if (clients.length > 0) return;
+  scheduleIdleExit(IDLE_EXIT_MS, "Navigateur fermé — arrêt du serveur local");
+}
 const SESSIONS_PATH = path.join(path.dirname(path.resolve(DATA_PATH)), "sessions.json");
 const DATA_LOCK_DIR = `${path.resolve(DATA_PATH)}.lock`;
 const LOCK_STALE_MS = 25_000;
@@ -2625,6 +2661,8 @@ app.get("/api/events", (req, res) => {
 
   const client = { res, userId: session.user?.id, token };
   clients.push(client);
+  noteUiActivity();
+  cancelIdleExit();
 
   const keepAlive = setInterval(() => {
     try {
@@ -2638,7 +2676,20 @@ app.get("/api/events", (req, res) => {
     clearInterval(keepAlive);
     const index = clients.indexOf(client);
     if (index !== -1) clients.splice(index, 1);
+    onBrowserGone();
   });
+});
+
+app.get("/api/health", (_req, res) => {
+  noteUiActivity();
+  cancelIdleExit();
+  res.json({ ok: true });
+});
+
+app.post("/api/goodbye", (_req, res) => {
+  lastUiAt = 0;
+  onBrowserGone();
+  res.json({ ok: true });
 });
 
 app.get("/api/presence", authMiddleware, (_req, res) => {
@@ -3137,4 +3188,10 @@ app.listen(PORT, () => {
   startPresenceServices();
   console.log(`Détection couleur live : polling toutes les ${LIVE_POLL_INTERVAL_MS / 1000}s`);
   console.log(`Présence : ${PRESENCE_DIR} (un fichier par connexion)`);
+  if (idleShutdownDisabled) {
+    console.log("Arrêt auto : désactivé (SHUTDOWN_WHEN_IDLE=0)");
+  } else {
+    console.log("Arrêt auto : le serveur s'arrête quand tu fermes l'onglet");
+    scheduleIdleExit(STARTUP_EXIT_MS, "Aucun navigateur ouvert — arrêt du serveur local");
+  }
 });

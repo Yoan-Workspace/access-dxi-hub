@@ -467,6 +467,21 @@ export function presenceBye() {
   }
 }
 
+export function uiKeepAlive() {
+  if (!API_CONFIGURED) return;
+  void fetch(`${getApiBase()}/api/health`, { keepalive: true }).catch(() => undefined);
+}
+
+export function uiGoodbye() {
+  if (!API_CONFIGURED) return;
+  const url = `${getApiBase()}/api/goodbye`;
+  try {
+    navigator.sendBeacon(url);
+  } catch {
+    void fetch(url, { method: "POST", keepalive: true }).catch(() => undefined);
+  }
+}
+
 export async function sendWizz(userId: number): Promise<void> {
   await apiFetch("/api/wizz", {
     method: "POST",

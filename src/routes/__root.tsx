@@ -4,7 +4,7 @@ import { useEffect } from "react";
 import { Loader2 } from "lucide-react";
 import { Toaster } from "@/components/ui/sonner";
 import { AuthProvider, useAuth } from "@/lib/auth";
-import { API_CONFIGURED } from "@/lib/api";
+import { API_CONFIGURED, uiGoodbye, uiKeepAlive } from "@/lib/api";
 import { LoginDialog } from "@/components/LoginDialog";
 
 function NotFoundComponent() {
@@ -64,6 +64,21 @@ function RootComponent() {
 function AuthGate() {
   const { user, loading } = useAuth();
   const showLogin = API_CONFIGURED && !loading && !user;
+
+  useEffect(() => {
+    if (!API_CONFIGURED) return;
+    uiKeepAlive();
+    const beat = window.setInterval(uiKeepAlive, 5_000);
+    const onLeave = () => uiGoodbye();
+    window.addEventListener("pagehide", onLeave);
+    window.addEventListener("beforeunload", onLeave);
+    return () => {
+      window.clearInterval(beat);
+      window.removeEventListener("pagehide", onLeave);
+      window.removeEventListener("beforeunload", onLeave);
+      uiGoodbye();
+    };
+  }, []);
 
   if (loading) {
     return (
