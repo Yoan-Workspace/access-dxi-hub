@@ -206,7 +206,7 @@ export function AddMachineDialog({ open, onOpenChange, onCreate }: Props) {
 
           <div className="flex items-center justify-between gap-3 rounded-xl border bg-muted/40 px-3 py-2.5">
             <span>
-              <span className="block text-sm font-medium">Compatible bidons Triton</span>
+              <span className="block text-sm font-medium">Compatible Triton</span>
               <span className="block text-[11px] text-muted-foreground">
                 À activer si la machine peut être branchée pour une manip Triton.
               </span>

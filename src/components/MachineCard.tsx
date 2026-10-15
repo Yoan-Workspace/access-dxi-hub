@@ -367,7 +367,7 @@ export function MachineCard({
             <span className="block text-[10px] text-muted-foreground">
               {tritonActive
                 ? "Manip en cours — décocher à la fin"
-                : "Cocher si branchée sur les bidons"}
+                : "Cocher si branchée Triton"}
             </span>
           </span>
         </button>
